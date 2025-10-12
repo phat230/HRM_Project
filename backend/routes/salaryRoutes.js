@@ -4,7 +4,7 @@ const auth = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Admin quản lý toàn bộ lương
+// GIỮ path cũ — web dùng tiếp; mobile dùng /api/salary/* (alias)
 router.get("/", auth(["admin"]), getAllSalaries);
 router.put("/:id", auth(["admin"]), updateSalary);
 

@@ -7,6 +7,7 @@ const Employee = require("../models/Employee");
 
 /**
  * 📅 Nhân viên xem lịch làm việc của mình hoặc phòng ban
+ * (Path giữ nguyên — web không ảnh hưởng; mobile dùng /api/work-schedule)
  */
 router.get("/", auth(["employee", "manager", "admin"]), async (req, res) => {
   try {
@@ -17,10 +18,7 @@ router.get("/", auth(["employee", "manager", "admin"]), async (req, res) => {
       if (!emp) return res.status(404).json({ error: "Không tìm thấy nhân viên" });
 
       filter = {
-        $or: [
-          { department: emp.department },
-          { assignedTo: req.user.id },
-        ],
+        $or: [{ department: emp.department }, { assignedTo: req.user.id }],
       };
     }
 

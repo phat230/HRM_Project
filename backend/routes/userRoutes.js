@@ -14,7 +14,7 @@ const Employee = require("../models/Employee");
 router.get("/work-schedule/my", auth(["employee", "manager"]), async (req, res) => {
   const userId = new mongoose.Types.ObjectId(req.user.id);
   const list = await WorkSchedule.find({
-    $or: [{ assignedTo: userId }, { department: req.user.department }]
+    $or: [{ assignedTo: userId }, { department: req.user.department }],
   }).sort({ startDate: 1 });
   res.json(list);
 });
@@ -45,7 +45,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);
-  }
+  },
 });
 const upload = multer({ storage });
 
@@ -62,7 +62,7 @@ router.post("/documents", auth(["employee", "manager"]), upload.single("file"), 
       filePath: req.file.path,
       fileType: req.file.mimetype,
       uploadedBy: req.user.id,
-      isFolder: false
+      isFolder: false,
     });
 
     await doc.save();
@@ -104,10 +104,7 @@ router.get("/documents/download/:id", auth(["employee", "manager"]), async (req,
     const filePath = path.resolve(doc.filePath);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File không tồn tại" });
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename*=UTF-8''${encodeURIComponent(doc.title)}`
-    );
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(doc.title)}`);
     res.setHeader("Content-Type", doc.fileType);
     res.download(filePath);
   } catch (err) {

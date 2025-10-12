@@ -9,6 +9,6 @@ const documentSchema = new mongoose.Schema({
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   isFolder: { type: Boolean, default: false },
   uploadedAt: { type: Date, default: Date.now },
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model("Document", documentSchema);

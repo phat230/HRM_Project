@@ -27,10 +27,12 @@ router.get("/me", auth(["employee", "manager", "admin"]), async (req, res) => {
     const perf = await PerformanceReview.find({ userId });
     const avgScore =
       perf.length > 0
-        ? perf.reduce((sum, p) => sum + (p.score || 0), 0) / perf.length
+        ? perf.reduce((sum, p) => sum + (typeof p.score === "number" ? p.score : (p.communication + p.technical + p.attitude) / 3), 0) /
+          perf.length
         : 0;
 
-    const docsDownloaded = await Document.countDocuments({ downloadedBy: userId });
+    // Nếu cần tracking download, thêm model log. Tạm thời = 0 cho an toàn.
+    const docsDownloaded = 0;
     const totalLeaves = await Leave.countDocuments({ userId });
 
     res.json({
@@ -68,14 +70,16 @@ router.get("/", auth(["admin"]), async (req, res) => {
         const perf = await PerformanceReview.find({ userId: emp.userId?._id });
         const avgScore =
           perf.length > 0
-            ? perf.reduce((sum, p) => sum + (p.score || 0), 0) / perf.length
+            ? perf.reduce((sum, p) => sum + (typeof p.score === "number" ? p.score : (p.communication + p.technical + p.attitude) / 3), 0) /
+              perf.length
             : 0;
 
-        const docsDownloaded = await Document.countDocuments({ downloadedBy: emp.userId?._id });
+        // Chưa có tracking download — giữ 0 để không vỡ FE
+        const docsDownloaded = 0;
         const totalLeaves = await Leave.countDocuments({ userId: emp.userId?._id });
 
         return {
-          username: emp.userId?.username || "",  // ✅ chỉ trả username
+          username: emp.userId?.username || "", // ✅ chỉ trả username
           name: emp.name,
           department: emp.department,
           position: emp.position,

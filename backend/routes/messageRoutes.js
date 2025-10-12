@@ -1,3 +1,4 @@
+// backend/routes/messageRoutes.js
 const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/authMiddleware");
@@ -7,6 +8,7 @@ const Employee = require("../models/Employee");
 
 /**
  * 📜 Lấy danh sách phòng chat
+ * (Path giữ nguyên — alias /api/messages/* cho mobile)
  */
 router.get("/rooms", auth(["employee", "manager", "admin"]), async (req, res) => {
   try {
@@ -14,12 +16,12 @@ router.get("/rooms", auth(["employee", "manager", "admin"]), async (req, res) =>
     const emp = await Employee.findOne({ userId: myId });
     const dept = emp?.department || "Chưa phân phòng";
 
-    // Danh sách phòng private
+    // Danh sách phòng private có mình tham gia
     const privateRooms = await ChatRoom.find({
       type: "private",
       participants: myId,
     })
-      .populate("participants", "username")
+      .populate("participants", "_id username") // 🛠 luôn có _id
       .sort({ updatedAt: -1 });
 
     // Tạo hoặc lấy phòng ban
@@ -43,47 +45,55 @@ router.get("/rooms", auth(["employee", "manager", "admin"]), async (req, res) =>
 /**
  * 🔸 Tạo hoặc mở phòng private giữa 2 user
  */
-router.post("/rooms/private", auth(["employee", "manager", "admin"]), async (req, res) => {
-  try {
-    const { otherUserId } = req.body;
-    const myId = req.user.id;
+router.post(
+  "/rooms/private",
+  auth(["employee", "manager", "admin"]),
+  async (req, res) => {
+    try {
+      const { otherUserId } = req.body;
+      const myId = req.user.id;
 
-    let room = await ChatRoom.findOne({
-      type: "private",
-      participants: { $all: [myId, otherUserId] },
-    }).populate("participants", "username");
-
-    if (!room) {
-      room = await new ChatRoom({
+      let room = await ChatRoom.findOne({
         type: "private",
-        participants: [myId, otherUserId],
-      }).save();
-      await room.populate("participants", "username");
-    }
+        participants: { $all: [myId, otherUserId] },
+      }).populate("participants", "_id username"); // 🛠
 
-    res.json(room);
-  } catch (err) {
-    console.error("❌ Lỗi tạo phòng:", err);
-    res.status(500).json({ error: err.message });
+      if (!room) {
+        room = await new ChatRoom({
+          type: "private",
+          participants: [myId, otherUserId],
+        }).save();
+        await room.populate("participants", "_id username"); // 🛠
+      }
+
+      res.json(room);
+    } catch (err) {
+      console.error("❌ Lỗi tạo phòng:", err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 /**
  * 💬 Lấy lịch sử tin nhắn theo roomId
  */
-router.get("/:roomId", auth(["employee", "manager", "admin"]), async (req, res) => {
-  try {
-    const { roomId } = req.params;
-    const messages = await Message.find({ roomId })
-      .populate("sender", "username")
-      .sort({ createdAt: 1 });
+router.get(
+  "/:roomId",
+  auth(["employee", "manager", "admin"]),
+  async (req, res) => {
+    try {
+      const { roomId } = req.params;
+      const messages = await Message.find({ roomId })
+        .populate("sender", "_id username") // 🛠 luôn có _id
+        .sort({ createdAt: 1 });
 
-    res.json(messages);
-  } catch (err) {
-    console.error("❌ Lỗi lấy tin nhắn:", err);
-    res.status(500).json({ error: err.message });
+      res.json(messages);
+    } catch (err) {
+      console.error("❌ Lỗi lấy tin nhắn:", err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 /**
  * ✉️ Gửi tin nhắn (lưu luôn DB)
@@ -91,7 +101,8 @@ router.get("/:roomId", auth(["employee", "manager", "admin"]), async (req, res) 
 router.post("/", auth(["employee", "manager", "admin"]), async (req, res) => {
   try {
     const { roomId, content } = req.body;
-    if (!roomId || !content) return res.status(400).json({ error: "Thiếu dữ liệu" });
+    if (!roomId || !content)
+      return res.status(400).json({ error: "Thiếu dữ liệu" });
 
     const room = await ChatRoom.findById(roomId);
     if (!room) return res.status(404).json({ error: "Không tìm thấy phòng chat" });
@@ -107,7 +118,7 @@ router.post("/", auth(["employee", "manager", "admin"]), async (req, res) => {
     room.updatedAt = new Date();
     await room.save();
 
-    const populatedMsg = await msg.populate("sender", "username");
+    const populatedMsg = await msg.populate("sender", "_id username"); // 🛠
 
     res.json(populatedMsg);
   } catch (err) {

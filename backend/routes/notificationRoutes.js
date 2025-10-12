@@ -4,11 +4,6 @@ const auth = require("../middleware/authMiddleware");
 const Notification = require("../models/Notification");
 const Employee = require("../models/Employee");
 
-/**
- * 📢 Lấy danh sách thông báo cho từng user
- * - Admin: thấy toàn bộ thông báo
- * - Nhân viên: thấy thông báo của phòng ban mình + thông báo chung
- */
 router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
   try {
     let filter = {};
@@ -36,13 +31,7 @@ router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
   }
 });
 
-/**
- * 📨 Gửi thông báo (chỉ admin)
- * target:
- *  - all: toàn bộ
- *  - department: phòng ban cụ thể
- *  - user: cá nhân
- */
+
 router.post("/", auth(["admin"]), async (req, res) => {
   try {
     const { title, message, target, targetValue } = req.body;
