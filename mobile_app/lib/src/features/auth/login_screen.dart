@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/session/session_controller.dart';
+import '../../core/config/app_routes.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -20,27 +21,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _doLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
+
     try {
-      final res = await ApiClient.instance.dio.post('/auth/login', data: {
-        'username': _user.text.trim(),
-        'password': _pass.text,
-      });
+      final res = await ApiClient.instance.dio.post(
+        '/auth/login',
+        data: {
+          'username': _user.text.trim(),
+          'password': _pass.text,
+        },
+      );
+
       final data = res.data as Map<String, dynamic>;
       final token = data['token']?.toString() ?? '';
-      final role = data['role']?.toString() ?? 'employee';
-      final username = data['username']?.toString() ?? _user.text.trim();
+      final role = data['user']?['role']?.toString() ?? 'employee';
+      final username = data['user']?['username']?.toString() ?? _user.text.trim();
 
-      await ref.read(sessionProvider.notifier).setLoggedIn(
-            token: token,
-            role: role,
-            username: username,
-          );
+      await ref
+          .read(sessionProvider.notifier)
+          .setLoggedIn(token: token, role: role, username: username);
+
+      if (!mounted) return;
+
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+      }
     } on DioException catch (e) {
       final msg = e.response?.data is Map
           ? (e.response!.data['error']?.toString() ?? 'Đăng nhập thất bại')
           : 'Đăng nhập thất bại';
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ $msg')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('❌ $msg')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -59,14 +72,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             TextFormField(
               controller: _user,
               decoration: const InputDecoration(labelText: 'Username'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Nhập username' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Nhập username' : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _pass,
               decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
-              validator: (v) => (v == null || v.isEmpty) ? 'Nhập password' : null,
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Nhập password' : null,
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

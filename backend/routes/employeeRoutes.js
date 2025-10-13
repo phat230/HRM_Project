@@ -230,22 +230,36 @@ router.get("/peers", auth(["employee", "manager", "admin"]), async (req, res) =>
     const { scope } = req.query; // scope = 'dept' hoặc 'all'
     const meId = req.user.id;
 
-    // Lấy thông tin nhân viên hiện tại để biết phòng ban
-    const meEmp = await Employee.findOne({ userId: meId });
-    if (!meEmp) return res.status(404).json({ error: "Không tìm thấy hồ sơ nhân viên hiện tại" });
+    // ✅ Kiểm tra thông tin nhân viên hiện tại
+    let meEmp = await Employee.findOne({ userId: meId });
 
+    // 👉 Nếu chưa có Employee thì tạo tự động cho admin / manager
+    if (!meEmp) {
+      if (req.user.role === "admin" || req.user.role === "manager") {
+        meEmp = await Employee.create({
+          userId: meId,
+          name: req.user.username || "Admin",
+          department: "IT",          // 👈 có thể đổi thành mặc định khác
+          position: req.user.role,   // Admin / Manager
+        });
+        console.log(`🆕 Tạo mới Employee tự động cho userId=${meId}`);
+      } else {
+        return res.status(404).json({ error: "Không tìm thấy hồ sơ nhân viên hiện tại" });
+      }
+    }
+
+    // ✅ Nếu không phải scope=all thì lọc theo phòng ban
     const query = {};
     if (scope !== "all") {
-      // Nếu không phải "all" thì chỉ lấy trong phòng ban
       query.department = meEmp.department;
     }
 
-    // Lấy danh sách nhân viên
+    // 🧾 Lấy danh sách nhân viên
     const employees = await Employee.find(query)
       .populate("userId", "username role")
       .sort({ name: 1 });
 
-    // Loại bỏ chính mình và định dạng dữ liệu trả về
+    // ❌ Loại chính mình + định dạng trả về
     const result = employees
       .filter((e) => e.userId && e.userId._id.toString() !== meId)
       .map((e) => ({
@@ -262,5 +276,6 @@ router.get("/peers", auth(["employee", "manager", "admin"]), async (req, res) =>
     res.status(500).json({ error: err.message });
   }
 });
+
 
 module.exports = router;

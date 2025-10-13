@@ -12,15 +12,20 @@ module.exports = (roles = []) => {
       const token = authHeader.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Tìm user trong DB
+      // ✅ Lấy user trong DB
       const user = await User.findById(decoded.id);
       if (!user) {
         return res.status(401).json({ error: "User không tồn tại" });
       }
 
-      req.user = user; // Gắn user đầy đủ vào request
+      // ✅ Gắn thông tin chuẩn hóa vào req.user
+      req.user = {
+        id: user._id.toString(),   // 👈 id dùng nhất quán
+        username: user.username,   // 👈 cần cho auto tạo employee
+        role: user.role,
+      };
 
-      // Kiểm tra role nếu có truyền vào middleware
+      // ✅ Kiểm tra quyền
       if (roles.length && !roles.includes(user.role)) {
         return res.status(403).json({ error: "Không có quyền truy cập" });
       }
@@ -28,7 +33,7 @@ module.exports = (roles = []) => {
       next();
     } catch (err) {
       console.error("❌ Auth error:", err.message);
-      res.status(401).json({ error: "Token không hợp lệ" });
+      res.status(401).json({ error: "Token không hợp lệ hoặc hết hạn" });
     }
   };
 };
