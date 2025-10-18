@@ -13,7 +13,6 @@ export default function DocumentManagementUser() {
 
   // ✅ Giải mã token lấy userId & role
   useEffect(() => {
-    // Lấy token từ localStorage (ưu tiên "token", fallback sang authUser.token)
     const token =
       localStorage.getItem("token") ||
       JSON.parse(localStorage.getItem("authUser") || "{}")?.token;
@@ -36,7 +35,8 @@ export default function DocumentManagementUser() {
   useEffect(() => {
     const fetchDept = async () => {
       try {
-        const res = await api.get("/api/employees/me");
+        // ⚠️ FIX: bỏ thừa /api
+        const res = await api.get("/employees/me");
         setCurrentUserDept(res.data.department);
         console.log("🏢 Phòng ban user hiện tại:", res.data.department);
       } catch (err) {
@@ -136,6 +136,11 @@ export default function DocumentManagementUser() {
     }
   };
 
+  // 📂 Lọc tài liệu trước khi render
+  const visibleDocs = docs.filter((d) => {
+    return d.department === "general" || d.department === currentUserDept;
+  });
+
   return (
     <div className="container mt-3">
       <div className="row">
@@ -173,7 +178,7 @@ export default function DocumentManagementUser() {
           {/* Danh sách tài liệu */}
           <div className="card p-3">
             <h5>📑 Danh sách tài liệu</h5>
-            {docs.length === 0 ? (
+            {visibleDocs.length === 0 ? (
               <p>Chưa có tài liệu nào.</p>
             ) : (
               <table className="table table-bordered table-hover mt-2">
@@ -187,7 +192,7 @@ export default function DocumentManagementUser() {
                   </tr>
                 </thead>
                 <tbody>
-                  {docs.map((d) => {
+                  {visibleDocs.map((d) => {
                     console.log(
                       "📄 File:", d.title,
                       "| 👤 uploadedBy:", d.uploadedBy?._id || d.uploadedBy,
@@ -199,7 +204,10 @@ export default function DocumentManagementUser() {
                     const uploadedId = d.uploadedBy?._id || d.uploadedBy;
                     const isOwner = String(uploadedId) === String(currentUserId);
                     const isAdmin = currentRole === "admin";
-                    const sameDept = currentUserDept && d.department !== "general" && d.department === currentUserDept;
+                    const sameDept =
+                      currentUserDept &&
+                      d.department !== "general" &&
+                      d.department === currentUserDept;
 
                     return (
                       <tr key={d._id}>
