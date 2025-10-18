@@ -1,61 +1,82 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/app_config.dart';
+import '../config/env.dart';
 
 class DioClient {
   DioClient._();
-  static final DioClient _i = DioClient._();
-  factory DioClient() => _i;
+  static final DioClient instance = DioClient._();
 
-  final Dio dio = Dio(BaseOptions(
-    baseUrl: AppConfig.api,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 20),
-    headers: {'Content-Type': 'application/json'},
-  ))
-    ..interceptors.add(InterceptorsWrapper(
-      onRequest: (opts, handler) async {
-        // Đính kèm Bearer token
-        final sp = await SharedPreferences.getInstance();
-        final token = sp.getString('access_token');
-        if (token != null && token.isNotEmpty) {
-          opts.headers['Authorization'] = 'Bearer $token';
-        }
-        handler.next(opts);
+  final Dio dio = Dio(
+    BaseOptions(
+      baseUrl: Env.apiBase,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+      headers: {
+        'Content-Type': 'application/json',
       },
-      onError: (e, handler) async {
-        // Auto refresh nếu 401 và có refresh_token
-        if (e.response?.statusCode == 401) {
-          final ok = await _refreshToken();
-          if (ok) {
-            final req = e.requestOptions;
-            final cl = Dio(BaseOptions(baseUrl: AppConfig.api));
-            final sp = await SharedPreferences.getInstance();
-            final token = sp.getString('access_token');
-            req.headers['Authorization'] = 'Bearer $token';
-            final res = await cl.fetch(req);
-            return handler.resolve(res);
+    ),
+  )..interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // 🔐 Gắn Bearer token nếu có
+          final sp = await SharedPreferences.getInstance();
+          final token = sp.getString('access_token');
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
           }
-        }
-        handler.next(e);
-      },
-    ));
+
+          // 🪵 Log request
+          print('📡 [API REQUEST] ${options.method} ${options.uri}');
+          print('🪪 [TOKEN] ${options.headers['Authorization']}');
+
+          handler.next(options);
+        },
+        onError: (e, handler) async {
+          print('❌ [API ERROR] ${e.requestOptions.uri}');
+          print('❌ [STATUS] ${e.response?.statusCode}');
+          print('❌ [DATA] ${e.response?.data}');
+
+          // 🔄 Refresh token nếu bị 401
+          if (e.response?.statusCode == 401) {
+            final ok = await _refreshToken();
+            if (ok) {
+              final sp = await SharedPreferences.getInstance();
+              final token = sp.getString('access_token');
+              final retry = e.requestOptions;
+              retry.headers['Authorization'] = 'Bearer $token';
+
+              // ❗ dùng Dio tạm để tránh self-reference
+              final tempDio = Dio(BaseOptions(baseUrl: Env.apiBase));
+              final newResponse = await tempDio.fetch(retry);
+              return handler.resolve(newResponse);
+            }
+          }
+
+          handler.next(e);
+        },
+      ),
+    );
 
   static Future<bool> _refreshToken() async {
     try {
       final sp = await SharedPreferences.getInstance();
       final rt = sp.getString('refresh_token');
-      if (rt == null) return false;
+      if (rt == null || rt.isEmpty) return false;
 
-      final dio = Dio(BaseOptions(baseUrl: AppConfig.api));
-      final res = await dio.post('/auth/refresh', data: {'refreshToken': rt});
-      final access = res.data['accessToken'] as String?;
-      if (access != null) {
-        await sp.setString('access_token', access);
+      final tempDio = Dio(BaseOptions(baseUrl: Env.apiBase));
+      final res = await tempDio.post(
+        '/auth/refresh',
+        data: {'refreshToken': rt},
+      );
+
+      final newAccess = res.data['accessToken'] as String?;
+      if (newAccess != null) {
+        await sp.setString('access_token', newAccess);
         return true;
       }
       return false;
-    } catch (_) {
+    } catch (e) {
+      print('❌ Refresh token failed: $e');
       return false;
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 // ================== AUTH ==================
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/register_screen.dart';
 
 // ================== USER ==================
 import '../../features/user/home_user_screen.dart';
@@ -17,13 +18,14 @@ import '../../features/admin/salary/salary_admin_screen.dart';
 import '../../features/admin/attendance/attendance_admin_screen.dart';
 import '../../features/admin/report/report_admin_screen.dart';
 
-// ✅ Chat mới
+// ✅ Chat
 import '../../features/admin/chat/chat_admin_list_screen.dart';
 import '../../features/admin/chat/chat_admin_room_screen.dart';
 
 class AppRoutes {
   // ================== AUTH ==================
   static const login = '/login';
+  static const register = '/register';
 
   // ================== USER ==================
   static const userHome = '/user/home';
@@ -38,19 +40,16 @@ class AppRoutes {
   static const adminSalary = '/admin/salary';
   static const adminAttendance = '/admin/attendance';
   static const adminReport = '/admin/report';
-
   static const adminChat = '/admin/chat';
   static const adminChatRoom = '/admin/chat/room';
 
   // ================== ROUTE MAP ==================
   static Map<String, WidgetBuilder> routes = {
-    // Auth
     login: (context) => const LoginScreen(),
+    register: (context) => const RegisterScreen(),
 
-    // User
     userHome: (context) => const HomeUserScreen(),
 
-    // Admin
     adminDashboard: (context) => const AdminDashboardScreen(),
     adminEmployees: (context) => const EmployeeListScreen(),
     adminLeave: (context) => const LeaveRequestsScreen(),
@@ -61,7 +60,6 @@ class AppRoutes {
     adminAttendance: (context) => const AttendanceAdminScreen(),
     adminReport: (context) => const ReportAdminScreen(),
 
-    // ✅ Chat
     adminChat: (context) => const ChatAdminListScreen(),
     adminChatRoom: (context) => const ChatAdminRoomScreen(
       roomId: '',

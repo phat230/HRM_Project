@@ -1,13 +1,18 @@
-// lib/src/features/auth/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// 👇 Controller (nếu bạn muốn dùng Riverpod login)
+import 'presentation/login_controller.dart';
+
+// 👇 Core
 import '../../core/api/api_client.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/config/app_routes.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
+
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
@@ -34,11 +39,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final data = res.data as Map<String, dynamic>;
       final token = data['token']?.toString() ?? '';
       final role = data['user']?['role']?.toString() ?? 'employee';
-      final username = data['user']?['username']?.toString() ?? _user.text.trim();
+      final username =
+          data['user']?['username']?.toString() ?? _user.text.trim();
+      final userId = data['user']?['_id']?.toString() ?? ''; // 👈 thêm userId
 
-      await ref
-          .read(sessionProvider.notifier)
-          .setLoggedIn(token: token, role: role, username: username);
+      // ✅ Ghi session đầy đủ
+      await ref.read(sessionProvider.notifier).setLoggedIn(
+            token: token,
+            role: role,
+            username: username,
+            userId: userId,
+          );
 
       if (!mounted) return;
 
@@ -80,14 +91,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               controller: _pass,
               decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
-              validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Nhập password' : null,
+              validator: (v) => (v == null || v.isEmpty) ? 'Nhập password' : null,
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _loading ? null : _doLogin,
               icon: const Icon(Icons.login),
               label: Text(_loading ? 'Đang đăng nhập...' : 'Đăng nhập'),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
+              child: const Text('Chưa có tài khoản? Đăng ký ngay'),
             ),
           ],
         ),

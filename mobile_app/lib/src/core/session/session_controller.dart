@@ -1,4 +1,3 @@
-// lib/src/core/session/session_controller.dart
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,22 +13,26 @@ class SessionState {
   final SessionStatus status;
   final String? role;
   final String? username;
+  final String? userId; // ✅ Thêm userId để dùng cho các chức năng nhân viên
 
   const SessionState({
     required this.status,
     this.role,
     this.username,
+    this.userId,
   });
 
   SessionState copyWith({
     SessionStatus? status,
     String? role,
     String? username,
+    String? userId,
   }) {
     return SessionState(
       status: status ?? this.status,
       role: role ?? this.role,
       username: username ?? this.username,
+      userId: userId ?? this.userId,
     );
   }
 
@@ -37,6 +40,7 @@ class SessionState {
         'status': status.name,
         'role': role,
         'username': username,
+        'userId': userId,
       };
 
   static SessionState fromJson(Map<String, dynamic> m) {
@@ -49,6 +53,7 @@ class SessionState {
       status: s,
       role: m['role'] as String?,
       username: m['username'] as String?,
+      userId: m['userId'] as String?,
     );
   }
 }
@@ -61,7 +66,7 @@ class SessionStore {
   String? token;
 
   /// Lưu token + role + username vào SharedPreferences
-  Future<void> save(String token, String role, String username) async {
+  Future<void> save(String token, String role, String username, String userId) async {
     this.token = token;
     final sp = await SharedPreferences.getInstance();
     await sp.setString('auth_token', token);
@@ -71,6 +76,7 @@ class SessionStore {
         'status': 'loggedIn',
         'role': role,
         'username': username,
+        'userId': userId,
       }),
     );
   }
@@ -107,17 +113,19 @@ class SessionController extends StateNotifier<SessionState> {
     state = s;
   }
 
-  /// Đăng nhập thành công → lưu token, role, username
+  /// Đăng nhập hoặc đăng ký thành công → lưu token, role, username, userId
   Future<void> setLoggedIn({
     required String token,
     required String role,
     required String username,
+    required String userId, // ✅ thêm userId
   }) async {
-    await SessionStore.instance.save(token, role, username);
+    await SessionStore.instance.save(token, role, username, userId);
     state = SessionState(
       status: SessionStatus.loggedIn,
       role: role,
       username: username,
+      userId: userId,
     );
   }
 

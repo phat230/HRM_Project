@@ -1,4 +1,3 @@
-// lib/src/features/user/home_user_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/session/session_controller.dart';
@@ -14,7 +13,7 @@ import 'profile_update_screen.dart';
 import 'notifications_screen.dart';
 import 'documents_screen.dart';
 import 'performance_review_screen.dart';
-import 'chat/chat_list_screen.dart'; 
+import 'chat/chat_list_screen.dart';
 
 class HomeUserScreen extends ConsumerStatefulWidget {
   const HomeUserScreen({super.key});
@@ -24,6 +23,34 @@ class HomeUserScreen extends ConsumerStatefulWidget {
 
 class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
   int _tab = 0;
+
+  Future<void> _confirmLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đăng xuất'),
+        content: const Text('Bạn có chắc muốn đăng xuất khỏi tài khoản này không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await ref.read(sessionProvider.notifier).logout();
+      if (mounted) {
+        // 🔥 Điều hướng về trang login sau khi xóa session
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    }
+  }
 
   Widget _buildDashboardTab(BuildContext context) {
     final shortcuts = <_MenuItem>[
@@ -50,17 +77,28 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: shortcuts.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 1.6,
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 1.6,
           ),
           itemBuilder: (_, i) {
             final it = shortcuts[i];
             return Card(
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => it.page)),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => it.page),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Row(children: [Icon(it.icon), const SizedBox(width: 10), Expanded(child: Text(it.title, maxLines: 2))]),
+                  child: Row(
+                    children: [
+                      Icon(it.icon),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(it.title, maxLines: 2)),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -87,7 +125,7 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
       _MenuItem('Thông báo', Icons.notifications, const NotificationsScreen()),
       _MenuItem('Tài liệu', Icons.insert_drive_file, const DocumentsScreen()),
       _MenuItem('Đánh giá hiệu suất', Icons.star_half, const PerformanceReviewScreen()),
-      _MenuItem('Chat', Icons.chat, const ChatListScreen()), // ⬅️
+      _MenuItem('Chat', Icons.chat, const ChatListScreen()),
     ];
     return _MenuList(items: items);
   }
@@ -103,7 +141,11 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
       appBar: AppBar(
         title: const Text('HRM — Nhân viên'),
         actions: [
-          IconButton(onPressed: () => ref.read(sessionProvider.notifier).logout(), icon: const Icon(Icons.logout), tooltip: 'Đăng xuất'),
+          IconButton(
+            onPressed: _confirmLogout,
+            icon: const Icon(Icons.logout),
+            tooltip: 'Đăng xuất',
+          ),
         ],
       ),
       body: pages[_tab],
@@ -130,6 +172,7 @@ class _MenuItem {
 class _MenuList extends StatelessWidget {
   const _MenuList({required this.items});
   final List<_MenuItem> items;
+
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
@@ -141,7 +184,9 @@ class _MenuList extends StatelessWidget {
             leading: Icon(it.icon),
             title: Text(it.title),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => it.page)),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => it.page),
+            ),
           ),
         );
       },

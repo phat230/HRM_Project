@@ -10,17 +10,23 @@ class LoginController extends StateNotifier<AsyncValue<void>> {
   Future<void> login(String username, String password) async {
     state = const AsyncLoading();
     try {
+      // Gọi API login
       final data = await _api.login(username, password);
-      final access = data['accessToken'] as String;
-      final refresh = data['refreshToken'] as String;
+      final token = data['token'] as String; // khớp backend
       final user = data['user'] as Map<String, dynamic>;
-      await _ref.read(sessionProvider.notifier).saveLogin(
-            accessToken: access,
-            refreshToken: refresh,
-            userId: user['_id'] ?? user['id'],
-            username: user['username'],
-            role: user['role'],
+
+      final role = user['role']?.toString() ?? 'employee';
+      final usernameResp = user['username']?.toString() ?? username;
+      final userId = user['_id']?.toString() ?? ''; // ✅ thêm dòng này
+
+      // Lưu session
+      await _ref.read(sessionProvider.notifier).setLoggedIn(
+            token: token,
+            role: role,
+            username: usernameResp,
+            userId: userId, // 👈 thêm userId bắt buộc
           );
+
       state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);
