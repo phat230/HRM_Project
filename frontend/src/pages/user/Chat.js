@@ -1,3 +1,4 @@
+// frontend/src/pages/user/Chat.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import io from "socket.io-client";
 import api from "../../api";
@@ -24,61 +25,35 @@ export default function Chat() {
   const bottomRef = useRef(null);
   const joinedRoomIdRef = useRef(null);
 
-  // Chuẩn hoá myId/myName để so sánh
-  const myId = useMemo(
-    () => String(me?._id ?? me?.id ?? me?.userId ?? ""),
-    [me]
-  );
-  const myName = useMemo(
-    () => (me?.username || "").trim().toLowerCase(),
-    [me]
-  );
+  // ===== Helpers =====
+  const myId = useMemo(() => String(me?._id ?? me?.id ?? me?.userId ?? ""), [me]);
+  const myName = useMemo(() => (me?.username || "").trim().toLowerCase(), [me]);
   const myDept = useMemo(() => me?.department || null, [me]);
 
   const scrollToBottom = () =>
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 20);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 
-  // Nhặt id từ nhiều kiểu giá trị
   const extractId = (val) => {
     if (!val) return "";
     if (typeof val === "string") return val;
-    if (typeof val === "object") {
-      // Mongoose doc, ObjectId object, v.v.
-      return String(val._id ?? val.id ?? val.$oid ?? "");
-    }
+    if (typeof val === "object") return String(val._id ?? val.id ?? val.$oid ?? "");
     return "";
   };
 
-  // Xác định "tin của mình"
+  // ✅ Chuẩn: chỉ so sánh string ID, tránh sai kiểu ObjectId
   const isMine = (m) => {
     try {
-      const idFromSenderObj = extractId(m?.sender);
-      const idFromSenderObjId = extractId(m?.sender?._id); // nếu sender là object { _id, username }
-      const idFromSocket = extractId(m?.fromUserId);
-
-      // Ưu tiên so sánh theo id
-      if (myId && (idFromSenderObj === myId || idFromSenderObjId === myId || idFromSocket === myId)) {
-        return true;
-      }
-
-      // Fallback theo username
-      const fromName = String(
-        m?.sender?.username ?? m?.fromUserName ?? m?.fromUsername ?? ""
-      ).trim().toLowerCase();
-      if (fromName && myName && fromName === myName) return true;
-
-      return false;
+      const senderId =
+        extractId(m?.sender) || extractId(m?.sender?._id) || extractId(m?.fromUserId);
+      return String(senderId) === String(myId);
     } catch {
       return false;
     }
   };
 
-  // Chuẩn hoá 1 message về format thống nhất
   const normalizeMsg = (raw) => {
     const senderId =
-      extractId(raw?.sender) ||
-      extractId(raw?.sender?._id) ||
-      extractId(raw?.fromUserId);
+      extractId(raw?.sender) || extractId(raw?.sender?._id) || extractId(raw?.fromUserId);
 
     const senderName =
       raw?.sender?.username ?? raw?.fromUserName ?? raw?.fromUsername ?? "";
@@ -92,13 +67,12 @@ export default function Chat() {
     };
   };
 
-  // Join user-rooms
+  // ===== Socket join user & dept =====
   useEffect(() => {
-    if (myId) {
-      socket.emit("join", { userId: myId, department: me?.department });
-    }
+    if (myId) socket.emit("join", { userId: myId, department: me?.department });
   }, [myId, me?.department]);
 
+  // ===== Load rooms / employees =====
   const loadRooms = async () => {
     try {
       const res = await api.get("/messages/rooms");
@@ -123,9 +97,9 @@ export default function Chat() {
   useEffect(() => { loadRooms(); }, []);
   useEffect(() => { loadEmployees(); }, [chatOutsideDept]);
 
+  // ===== Open/join room & load messages =====
   const openRoom = async (room) => {
     if (!room?._id) return;
-
     if (joinedRoomIdRef.current) {
       socket.emit("leave_room", { roomId: joinedRoomIdRef.current });
     }
@@ -148,23 +122,20 @@ export default function Chat() {
     }
   };
 
-  // Nhận realtime
+  // ===== Receive realtime =====
   useEffect(() => {
     const handler = (payload) => {
       if (!currentRoom) return;
       if (String(payload?.roomId) !== String(currentRoom._id)) return;
-
-      // của chính mình => đã append local, bỏ qua
-      if (myId && String(payload?.fromUserId) === myId) return;
-
+      if (String(payload?.fromUserId) === String(myId)) return; // bỏ echo của chính mình
       setMessages((prev) => [...prev, normalizeMsg(payload)]);
       scrollToBottom();
     };
-
     socket.on("receive_message", handler);
     return () => socket.off("receive_message", handler);
   }, [currentRoom, myId]);
 
+  // ===== Start private with another user =====
   const startPrivateWith = async (otherUserId) => {
     try {
       const res = await api.post("/messages/rooms/private", { otherUserId });
@@ -175,21 +146,20 @@ export default function Chat() {
     }
   };
 
+  // ===== Send message =====
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!text.trim() || !currentRoom) return;
 
     const content = text.trim();
-
     try {
-      // Lưu DB
       const saved = await api.post("/messages", { roomId: currentRoom._id, content });
 
-      // Bản ghi để hiển thị ngay (đảm bảo id/username là của mình)
+      // Hiển thị ngay bản ghi của mình
       const myMsg = normalizeMsg(saved.data);
-      myMsg.sender = { _id: myId || myMsg.sender._id, username: me?.username || myMsg.sender.username };
+      myMsg.sender = { _id: myId, username: me?.username || "Tôi" };
 
-      // Emit cho room
+      // Emit realtime cho room
       socket.emit("send_message", {
         roomId: currentRoom._id,
         content,
@@ -206,35 +176,33 @@ export default function Chat() {
     }
   };
 
-  // UI bubble
+  // ===== UI: Bubble kiểu Messenger =====
   const renderBubble = (m) => {
     const mine = isMine(m);
     return (
       <div
-        key={m._id || `${m.createdAt}-${Math.random()}`}
+        key={m._id}
         className={`d-flex mb-2 ${mine ? "justify-content-end" : "justify-content-start"}`}
       >
-        <div style={{ maxWidth: "72%" }}>
+        <div
+          className={`p-2 px-3 rounded-4 shadow-sm ${
+            mine ? "bg-primary text-white align-self-end" : "bg-light text-dark align-self-start"
+          }`}
+          style={{
+            maxWidth: "70%",
+            borderRadius: mine ? "18px 18px 2px 18px" : "18px 18px 18px 2px",
+          }}
+        >
           {!mine && (
-            <div className="mb-1">
-              <small className="text-muted">
-                {m.sender?.username} · {new Date(m.createdAt).toLocaleString()}
-              </small>
-            </div>
+            <div className="small text-muted mb-1">{m.sender?.username}</div>
           )}
-
+          <div>{m.content}</div>
           <div
-            className={`p-2 rounded-3 ${mine ? "bg-primary text-white" : "bg-light"}`}
-            style={{ display: "inline-block" }}
+            className={`small text-muted mt-1 ${mine ? "text-end" : ""}`}
+            style={{ fontSize: "0.75rem" }}
           >
-            {m.content}
+            {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </div>
-
-          {mine && (
-            <div className="mt-1 text-end">
-              <small className="text-muted">{new Date(m.createdAt).toLocaleString()}</small>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -245,6 +213,7 @@ export default function Chat() {
     return others.map((p) => p.username).join(", ");
   };
 
+  // ===== UI Layout =====
   return (
     <div className="container-fluid mt-3">
       <div className="row">
@@ -252,7 +221,7 @@ export default function Chat() {
         <div className="col-3">
           <SidebarMenu role="user" />
           <div className="card mt-3">
-            <div className="card-header"><strong>Chat</strong></div>
+            <div className="card-header"><strong>💬 Chat</strong></div>
             <div className="card-body p-2">
               <div className="form-check form-switch mb-2">
                 <input
@@ -265,17 +234,22 @@ export default function Chat() {
                 <label htmlFor="switchOutside">Chat ngoài phòng ban</label>
               </div>
 
-              {/* phòng nhóm */}
+              {/* Phòng nhóm */}
               {deptRoom && (
                 <div className="mb-3">
                   <div className="d-flex justify-content-between align-items-center">
                     <strong>👥 {deptRoom.name}</strong>
-                    <button className="btn btn-sm btn-outline-primary" onClick={() => openRoom(deptRoom)}>Mở</button>
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => openRoom(deptRoom)}
+                    >
+                      Mở
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* danh sách nhân viên */}
+              {/* Danh sách nhân viên */}
               <hr />
               <small className="text-muted">
                 Nhân viên {chatOutsideDept ? "toàn công ty" : "trong phòng ban"}
@@ -300,7 +274,7 @@ export default function Chat() {
                 )}
               </div>
 
-              {/* private rooms */}
+              {/* Phòng private gần đây */}
               <hr className="my-2" />
               <small className="text-muted">Đoạn chat gần đây</small>
               <div className="list-group mt-1" style={{ maxHeight: 200, overflowY: "auto" }}>
@@ -340,10 +314,7 @@ export default function Chat() {
             </div>
 
             <div className="card-body" style={{ height: 520, overflowY: "auto" }}>
-              {messages.map((m, i) => {
-                const key = m._id || (m.createdAt ? `${m.createdAt}-${i}` : `msg-${i}`);
-                return <React.Fragment key={key}>{renderBubble(m)}</React.Fragment>;
-              })}
+              {messages.map((m) => renderBubble(m))}
               <div ref={bottomRef} />
             </div>
 

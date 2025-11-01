@@ -126,5 +126,16 @@ router.post("/", auth(["employee", "manager", "admin"]), async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router.get("/all-rooms", auth(["admin"]), async (req, res) => {
+  try {
+    const rooms = await ChatRoom.find({ type: "private" })
+      .populate("participants", "_id username")
+      .sort({ updatedAt: -1 });
 
+    res.json(rooms);
+  } catch (err) {
+    console.error("❌ Lỗi load all rooms:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;

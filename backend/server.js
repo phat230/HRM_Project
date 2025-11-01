@@ -24,6 +24,7 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("🔌 Socket connected:", socket.id);
 
+  // ===== JOIN =====
   socket.on("join", ({ userId, department }) => {
     if (userId) socket.join(`user:${userId}`);
     if (department) socket.join(`dept:${department}`);
@@ -41,33 +42,36 @@ io.on("connection", (socket) => {
     console.log(`🔌 ${socket.id} left room ${roomId}`);
   });
 
+  // ===== SEND MESSAGE =====
   socket.on("send_message", (payload = {}) => {
-    // Chuẩn hoá payload phát ra
+    // 🔧 Chuẩn hoá payload phát ra để đồng bộ với DB schema
     const out = {
       _id: payload._id || Date.now().toString(),              // nếu client không gửi _id
       roomId: payload.roomId ? String(payload.roomId) : null,
       content: payload.content ?? payload.message ?? "",
-      fromUserId: payload.fromUserId ?? null,
-      fromUserName: payload.fromUserName ?? payload.fromUsername ?? "N/A",
       createdAt: payload.createdAt || new Date().toISOString(),
+      sender: {
+        _id: payload.fromUserId ?? null,
+        username: payload.fromUserName ?? payload.fromUsername ?? "N/A",
+      },
     };
 
     console.log("💬 send_message >", out);
 
-    // Ưu tiên theo roomId (web/app mới)
+    // ✅ Ưu tiên theo roomId (web/app mới)
     if (out.roomId) {
       // ⬇️ không echo về chính socket đang gửi
       socket.to(out.roomId).emit("receive_message", out);
       return;
     }
 
-    // Giữ tương thích cũ (nếu client cũ vẫn bắn type)
+    // 🔄 Giữ tương thích cũ (client cũ bắn type)
     if (payload?.type === "private" && payload?.toUserId) {
       socket.to(`user:${payload.toUserId}`).emit("receive_message", out);
     } else if (payload?.type === "group" && payload?.department) {
       socket.to(`dept:${payload.department}`).emit("receive_message", out);
     } else {
-      // fallback cuối cùng: phát cho người khác (trừ mình)
+      // fallback cuối cùng: phát cho tất cả trừ mình
       socket.broadcast.emit("receive_message", out);
     }
   });
@@ -76,8 +80,6 @@ io.on("connection", (socket) => {
     console.log("🔌 Socket disconnected:", socket.id);
   });
 });
-
-
 
 // ===== MIDDLEWARE =====
 app.use(
@@ -121,7 +123,7 @@ mongoose
     process.exit(1);
   });
 
-// ===== HEALTH =====
+// ===== HEALTH CHECK =====
 app.get("/", (req, res) => res.json({ ok: true, service: "HRM Backend" }));
 app.get("/api", (req, res) => res.json({ ok: true, service: "HRM Backend (API root)" }));
 
@@ -148,7 +150,7 @@ try { reportRoutes = require("./routes/reportRoutes"); } catch { console.warn("�
 try { adminRoutes = require("./routes/adminRoutes"); } catch { console.warn("⚠️ adminRoutes chưa có"); }
 try { salaryRoutes = require("./routes/salaryRoutes"); } catch { console.warn("⚠️ salaryRoutes chưa có"); }
 
-// ===== MOUNT ROUTES — GIỮ route cũ CHO WEB + THÊM alias /api CHO MOBILE =====
+// ===== MOUNT ROUTES =====
 
 // Auth
 app.use("/auth", authRoutes);                 // legacy (web)
@@ -156,55 +158,55 @@ app.use("/api/auth", authRoutes);             // mobile
 
 // Employees / Profile
 if (employeeRoutes) {
-  app.use("/employees", employeeRoutes);      // legacy (web)
-  app.use("/api/employees", employeeRoutes);  // mobile
+  app.use("/employees", employeeRoutes);
+  app.use("/api/employees", employeeRoutes);
 }
 
 // Attendance
-app.use("/attendance", attendanceRoutes);     // legacy (web)
-app.use("/api/attendance", attendanceRoutes); // mobile
+app.use("/attendance", attendanceRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 // Leave requests
 if (leaveRoutes) {
-  app.use("/leave-requests", leaveRoutes);         // legacy (web)
-  app.use("/api/leave-requests", leaveRoutes);     // mobile
+  app.use("/leave-requests", leaveRoutes);
+  app.use("/api/leave-requests", leaveRoutes);
 }
 
 // Messages / Chat
 if (messageRoutes) {
-  app.use("/messages", messageRoutes);        // legacy (web)
-  app.use("/api/messages", messageRoutes);    // mobile
+  app.use("/messages", messageRoutes);
+  app.use("/api/messages", messageRoutes);
 }
 
 // Notifications
 if (notificationRoutes) {
-  app.use("/notifications", notificationRoutes);        // legacy (web)
-  app.use("/api/notifications", notificationRoutes);    // mobile
+  app.use("/notifications", notificationRoutes);
+  app.use("/api/notifications", notificationRoutes);
 }
 
 // Work schedule
 if (workScheduleRoutes) {
-  app.use("/work-schedule", workScheduleRoutes);        // legacy (web)
-  app.use("/api/work-schedule", workScheduleRoutes);    // mobile
+  app.use("/work-schedule", workScheduleRoutes);
+  app.use("/api/work-schedule", workScheduleRoutes);
 }
 
 // Reports
 if (reportRoutes) {
-  app.use("/report", reportRoutes);             // legacy (web)
-  app.use("/api/report", reportRoutes);         // mobile
+  app.use("/report", reportRoutes);
+  app.use("/api/report", reportRoutes);
 }
 
 // Admin
 if (adminRoutes) {
-  app.use("/admin", adminRoutes);               // legacy (web)
-  app.use("/api/admin", adminRoutes);           // mobile
+  app.use("/admin", adminRoutes);
+  app.use("/api/admin", adminRoutes);
 }
 
 // Salary — mount ở CẢ 2 đường dẫn
 if (salaryRoutes) {
-  app.use("/salary", salaryRoutes);                 // legacy (web)
-  app.use("/api/salary", salaryRoutes);             // mobile (user)
-  app.use("/api/admin/salary", salaryRoutes);       // mobile (admin) nếu cần
+  app.use("/salary", salaryRoutes);
+  app.use("/api/salary", salaryRoutes);
+  app.use("/api/admin/salary", salaryRoutes);
   console.log("💰 Salary routes at /salary, /api/salary & /api/admin/salary");
 } else {
   console.warn("⚠️ Salary route chưa được cấu hình");
@@ -219,5 +221,5 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-// Export io nếu cần dùng nơi khác (gửi noti server-side)
+// Export io nếu cần dùng nơi khác
 module.exports = { io };
