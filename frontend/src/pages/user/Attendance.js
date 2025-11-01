@@ -11,13 +11,12 @@ function Attendance() {
     try {
       const res = await api.get("/attendance");
       setRecords(res.data);
-
       const today = new Date().toISOString().split("T")[0];
       const todayRec = res.data.find((r) => r.date === today);
       setTodayRecord(todayRec || null);
     } catch (err) {
       console.error("❌ Lỗi load chấm công:", err);
-      alert("Lỗi tải dữ liệu chấm công!");
+      alert("Không tải được dữ liệu chấm công!");
     } finally {
       setLoading(false);
     }
@@ -26,7 +25,7 @@ function Attendance() {
   const checkIn = async () => {
     try {
       await api.post("/attendance/check-in");
-      alert("✅ Check-in thành công");
+      alert("✅ Check-in thành công (Giờ ra mặc định 17:00)");
       load();
     } catch (err) {
       alert(err.response?.data?.error || "❌ Lỗi check-in");
@@ -57,12 +56,16 @@ function Attendance() {
     load();
   }, []);
 
+  const fmtTime = (t) =>
+    t ? new Date(t).toLocaleTimeString("vi-VN", { hour12: false }) : "–";
+
   return (
     <div className="container mt-3">
       <div className="row">
         <div className="col-3">
           <SidebarMenu role="employee" />
         </div>
+
         <div className="col-9">
           <h3>🕒 Chấm công</h3>
 
@@ -70,10 +73,12 @@ function Attendance() {
           {todayRecord ? (
             <div className="alert alert-info">
               <strong>📅 Hôm nay:</strong> {todayRecord.date} <br />
-              ✅ Check-in:{" "}
-              {todayRecord.checkIn ? new Date(todayRecord.checkIn).toLocaleTimeString() : "—"} <br />
+              ✅ Check-in: {fmtTime(todayRecord.checkIn)} <br />
               🕓 Check-out:{" "}
-              {todayRecord.checkOut ? new Date(todayRecord.checkOut).toLocaleTimeString() : "—"} <br />
+              {todayRecord.checkOut
+                ? fmtTime(todayRecord.checkOut)
+                : "17:00 (mặc định)"}{" "}
+              <br />
               ⏳ Đi trễ: {todayRecord.lateMinutes || 0} phút <br />
               ⏰ Tăng ca: {todayRecord.overtimeHours?.toFixed(2) || 0} giờ <br />
               📆 Ngày công: {todayRecord.totalDays || 0}
@@ -130,8 +135,8 @@ function Attendance() {
                 {records.map((r) => (
                   <tr key={r._id}>
                     <td>{r.date}</td>
-                    <td>{r.checkIn ? new Date(r.checkIn).toLocaleTimeString() : "—"}</td>
-                    <td>{r.checkOut ? new Date(r.checkOut).toLocaleTimeString() : "—"}</td>
+                    <td>{fmtTime(r.checkIn)}</td>
+                    <td>{r.checkOut ? fmtTime(r.checkOut) : "17:00"}</td>
                     <td>{r.lateMinutes || 0}</td>
                     <td>{r.overtimeHours?.toFixed(2) || 0}</td>
                     <td>{r.totalDays || 0}</td>

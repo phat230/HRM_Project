@@ -5,11 +5,9 @@ const Attendance = require("../models/Attendance");
 const Employee = require("../models/Employee");
 
 // ========================= LẤY LỊCH SỬ CHẤM CÔNG =========================
-// (KHÔNG đổi path — web giữ nguyên; mobile dùng alias /api/* ở server.js)
 router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
   try {
-    let employees;
-    let attendanceRecords;
+    let employees, attendanceRecords;
 
     if (req.user.role === "admin") {
       // Admin xem tất cả nhân viên
@@ -21,7 +19,7 @@ router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
       attendanceRecords = await Attendance.find({ userId: req.user.id }).populate("userId", "username role");
     }
 
-    // Tạo map từ attendance theo userId
+    // Map từ userId → danh sách bản ghi Attendance
     const attendanceMap = new Map();
     attendanceRecords.forEach((a) => {
       const uid = a.userId?._id.toString();
@@ -29,32 +27,31 @@ router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
       attendanceMap.get(uid).push(a);
     });
 
-    // Duyệt qua tất cả nhân viên để đảm bảo ai cũng có record hiển thị
     const result = [];
     for (const emp of employees) {
       const uid = emp.userId?._id.toString();
       const records = attendanceMap.get(uid);
 
       if (records && records.length > 0) {
-        // Nếu có bản ghi Attendance
         records.forEach((r) => {
           result.push({
             _id: r._id,
             userId: r.userId,
             date: r.date,
             checkIn: r.checkIn,
+            checkOut: r.checkOut,
             lateMinutes: r.lateMinutes ?? 0,
             overtimeHours: r.overtimeHours ?? 0,
             totalDays: r.totalDays ?? 0,
           });
         });
       } else {
-        // Nếu chưa có Attendance
         result.push({
           _id: uid + "-empty",
           userId: emp.userId,
           date: null,
           checkIn: null,
+          checkOut: null,
           lateMinutes: 0,
           overtimeHours: 0,
           totalDays: 0,
@@ -62,7 +59,7 @@ router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
       }
     }
 
-    // Sắp xếp theo username để dễ nhìn
+    // sắp xếp theo username
     result.sort((a, b) => (a.userId?.username || "").localeCompare(b.userId?.username || ""));
     res.json(result);
   } catch (err) {
@@ -75,68 +72,78 @@ router.get("/", auth(["admin", "employee", "manager"]), async (req, res) => {
 router.post("/check-in", auth(["admin", "employee", "manager"]), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
-
     let record = await Attendance.findOne({ userId: req.user.id, date: today });
+
     if (record?.checkIn) return res.status(400).json({ error: "Hôm nay bạn đã Check-in rồi." });
 
     const now = new Date();
-    const checkInHour = 7;
-    const checkInMinute = 0;
+    const startHour = 7; // Giờ làm chuẩn: 7:00 sáng
+    const startMinute = 0;
+    const endHour = 17; // ✅ Giờ ra mặc định 17:00 chiều
 
-    const diffMinutes = (now.getHours() * 60 + now.getMinutes()) - (checkInHour * 60 + checkInMinute);
+    // tính phút đi trễ
+    const diffMinutes = (now.getHours() * 60 + now.getMinutes()) - (startHour * 60 + startMinute);
     const lateMinutes = diffMinutes > 0 ? diffMinutes : 0;
 
-    if (!record) record = new Attendance({ userId: req.user.id, date: today });
-    record.checkIn = now;
-    record.totalDays = 1;
-    record.lateMinutes = lateMinutes;
-    record.status = "Present";
+    // tạo bản ghi mới
+    const checkOutDefault = new Date();
+    checkOutDefault.setHours(endHour, 0, 0, 0);
+
+    record = new Attendance({
+      userId: req.user.id,
+      date: today,
+      checkIn: now,
+      checkOut: checkOutDefault, // ✅ giờ ra mặc định 17:00
+      totalDays: 1,
+      lateMinutes,
+      overtimeHours: 0,
+      status: "Present",
+    });
 
     await record.save();
-    res.json({ message: "✅ Check-in thành công", record });
+    res.json({ message: "✅ Check-in thành công (Giờ ra mặc định 17:00)", record });
   } catch (err) {
     console.error("❌ Lỗi check-in:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ========================= CHECK-OUT (bổ sung — không ảnh hưởng web) =========================
+// ========================= CHECK-OUT (bổ sung cho báo cáo, tùy chọn) =========================
 router.post("/check-out", auth(["admin", "employee", "manager"]), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     const record = await Attendance.findOne({ userId: req.user.id, date: today });
 
     if (!record || !record.checkIn) return res.status(400).json({ error: "Bạn chưa Check-in hôm nay." });
-    if (record.checkOut) return res.status(400).json({ error: "Bạn đã Check-out rồi." });
+    if (record.checkOut && record.checkOut.getHours() === 17)
+      return res.status(400).json({ error: "Giờ ra mặc định đã là 17:00." });
 
     record.checkOut = new Date();
-
-    // Tính tổng giờ làm (tùy chọn, dùng cho báo cáo)
     const ms = record.checkOut - record.checkIn;
     record.totalHours = Math.max(0, Math.round((ms / 36e5) * 100) / 100);
 
     await record.save();
-    res.json({ message: "⏹ Check-out thành công", record });
+    res.json({ message: "⏹ Check-out thủ công thành công", record });
   } catch (err) {
     console.error("❌ Lỗi check-out:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ========================= OVERTIME CHECK-IN =========================
+// ========================= BẮT ĐẦU TĂNG CA =========================
 router.post("/overtime", auth(["admin", "employee", "manager"]), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     const record = await Attendance.findOne({ userId: req.user.id, date: today });
 
-    if (!record || !record.checkIn) return res.status(404).json({ error: "Bạn chưa Check-in hôm nay." });
+    if (!record || !record.checkIn)
+      return res.status(404).json({ error: "Bạn chưa Check-in hôm nay." });
 
     const now = new Date();
-    const overtimeStart = 17 * 60;
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    if (nowMinutes < overtimeStart) {
-      return res.status(400).json({ error: "⏰ Tăng ca chỉ bắt đầu sau 17:00" });
-    }
+    const overtimeStart = 17 * 60;
+    if (nowMinutes < overtimeStart)
+      return res.status(400).json({ error: "⏰ Tăng ca chỉ bắt đầu sau 17:00." });
 
     record.overtimeStart = now;
     await record.save();
@@ -148,7 +155,7 @@ router.post("/overtime", auth(["admin", "employee", "manager"]), async (req, res
   }
 });
 
-// ========================= OVERTIME CHECK-OUT =========================
+// ========================= KẾT THÚC TĂNG CA =========================
 router.post("/overtime/checkout", auth(["admin", "employee", "manager"]), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
@@ -158,8 +165,8 @@ router.post("/overtime/checkout", auth(["admin", "employee", "manager"]), async 
       return res.status(404).json({ error: "Bạn chưa bắt đầu tăng ca." });
 
     record.overtimeEnd = new Date();
-    const overtimeHours = (record.overtimeEnd - record.overtimeStart) / 36e5;
-    record.overtimeHours = Math.max(0, Math.round((record.overtimeHours + overtimeHours) * 100) / 100);
+    const overtimeHours = Math.max(0, (record.overtimeEnd - record.overtimeStart) / 36e5);
+    record.overtimeHours = Math.round(overtimeHours * 100) / 100;
 
     await record.save();
     res.json({ message: "✅ Kết thúc tăng ca", record });

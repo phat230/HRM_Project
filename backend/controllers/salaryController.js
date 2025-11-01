@@ -1,32 +1,48 @@
+// controllers/salaryController.js
 const Salary = require("../models/Salary");
 const Employee = require("../models/Employee");
 const Attendance = require("../models/Attendance");
 const mongoose = require("mongoose");
 const moment = require("moment");
 
-// 📌 Hàm tính phần trăm phạt dựa trên phút đi trễ
-function calculatePenaltyRate(lateMinutes) {
-  if (!lateMinutes || lateMinutes <= 0) return 0;
-  if (lateMinutes <= 15) return 0.15;
-  if (lateMinutes <= 60) return 0.3;
-  return 0.5;
+// =============== 📘 HÀM HỖ TRỢ =================
+
+// 👉 Tính tiền phạt dựa theo tổng phút đi trễ
+function calculateLatePenalty(totalLateMinutes) {
+  if (!totalLateMinutes || totalLateMinutes <= 0) return 0;
+  if (totalLateMinutes >= 240) return "halfday"; // đi muộn >= 4h
+  if (totalLateMinutes >= 60) return 100000;
+  if (totalLateMinutes >= 30) return 50000;
+  if (totalLateMinutes >= 15) return 30000;
+  return 0;
 }
 
-// 📌 Hàm tính tiền phạt thực tế
-function calculatePenalty(lateMinutes, dailyRate) {
-  return dailyRate * calculatePenaltyRate(lateMinutes);
+// 👉 Tính số ngày làm việc trong tháng (trừ Chủ nhật)
+function getWorkingDaysInMonth(year, monthIndex) {
+  const date = new Date(year, monthIndex, 1);
+  let count = 0;
+  while (date.getMonth() === monthIndex) {
+    const day = date.getDay();
+    if (day !== 0) count++;
+    date.setDate(date.getDate() + 1);
+  }
+  return count;
 }
 
-// 📌 Admin: Lấy toàn bộ bảng lương theo tháng hiện tại
+// ================= 📌 ADMIN: LẤY TOÀN BỘ BẢNG LƯƠNG =================
 exports.getAllSalaries = async (req, res) => {
   try {
-    const currentMonth = moment().format("YYYY-MM");
+    const currentMonth = req.query.month || moment().format("YYYY-MM");
     const start = moment(currentMonth, "YYYY-MM").startOf("month").toDate();
     const end = moment(currentMonth, "YYYY-MM").endOf("month").toDate();
 
+    const year = moment(currentMonth, "YYYY-MM").year();
+    const monthIndex = moment(currentMonth, "YYYY-MM").month();
+    const workingDays = getWorkingDaysInMonth(year, monthIndex);
+
     const employees = await Employee.find().populate("userId", "username role");
 
-    // 🧾 Lấy Attendance trong tháng
+    // Tổng hợp Attendance trong tháng
     const attendance = await Attendance.aggregate([
       { $match: { checkIn: { $gte: start, $lte: end } } },
       {
@@ -40,44 +56,51 @@ exports.getAllSalaries = async (req, res) => {
     ]);
 
     const attendanceMap = new Map(
-      attendance.filter(t => t._id).map(t => [t._id.toString(), t])
+      attendance.filter((t) => t._id).map((t) => [t._id.toString(), t])
     );
-
-    let salaries = await Salary.find({ month: currentMonth }).populate("userId", "username role");
-    salaries = salaries.filter(s => s.userId);
 
     const result = [];
 
     for (const emp of employees) {
       if (!emp.userId) continue;
-
       const uid = emp.userId._id.toString();
-      const stat = attendanceMap.get(uid) || { totalDays: 0, totalLateMinutes: 0, overtimeHours: 0 };
 
-      // ✅ Giữ lại dailyRate và overtimeRate đã cập nhật trước đó
+      const stat =
+        attendanceMap.get(uid) || {
+          totalDays: 0,
+          totalLateMinutes: 0,
+          overtimeHours: 0,
+        };
+
+      // lấy Salary hiện tại hoặc tạo mới
       let salary = await Salary.findOne({ userId: uid, month: currentMonth });
       if (!salary) {
         salary = new Salary({
           userId: uid,
           month: currentMonth,
-          dailyRate: 300000,       // mặc định khi chưa có
-          overtimeRate: 50000
+          dailyRate: 300000,
+          overtimeRate: 50000,
         });
       }
 
-      const dailyRate = salary.dailyRate;
-      const overtimeRate = salary.overtimeRate;
+      const latePenalty = calculateLatePenalty(stat.totalLateMinutes);
+      let penalty = 0;
+      let finalDays = stat.totalDays;
 
-      const penalty = calculatePenalty(stat.totalLateMinutes, dailyRate);
-      const penaltyRate = calculatePenaltyRate(stat.totalLateMinutes);
-      const overtimePay = stat.overtimeHours * overtimeRate;
-      const amount = (stat.totalDays * dailyRate) - penalty + overtimePay;
+      if (latePenalty === "halfday") {
+        finalDays = Math.max(0, stat.totalDays - 1);
+      } else {
+        penalty = latePenalty;
+      }
 
-      salary.penalty = penalty;
-      salary.penaltyRate = penaltyRate;
-      salary.overtimePay = overtimePay;
-      salary.totalDays = stat.totalDays;
+      const overtimePay = stat.overtimeHours * salary.overtimeRate;
+      const basePay = finalDays * salary.dailyRate;
+      const amount = basePay - penalty + overtimePay;
+
+      salary.totalDays = finalDays;
       salary.totalLateMinutes = stat.totalLateMinutes;
+      salary.penalty = penalty;
+      salary.overtimePay = overtimePay;
       salary.amount = amount;
       await salary.save();
 
@@ -85,18 +108,19 @@ exports.getAllSalaries = async (req, res) => {
         _id: salary._id,
         userId: emp.userId,
         name: emp.name,
-        username: emp.userId?.username,
-        totalDays: stat.totalDays,
+        username: emp.userId.username,
+        department: emp.department,
+        totalDays: finalDays,
+        totalLateMinutes: stat.totalLateMinutes,
         penalty,
-        penaltyRate,
         overtimeHours: stat.overtimeHours,
-        dailyRate,
-        overtimeRate,
+        dailyRate: salary.dailyRate,
+        overtimeRate: salary.overtimeRate,
+        overtimePay,
         amount,
+        workingDays,
         month: currentMonth,
       });
-
-      console.log(`📊 [Salary][${emp.userId.username}] days=${stat.totalDays}, late=${stat.totalLateMinutes}, daily=${dailyRate}, overtime=${overtimeRate}, amount=${amount}`);
     }
 
     res.json(result);
@@ -106,129 +130,100 @@ exports.getAllSalaries = async (req, res) => {
   }
 };
 
-// 📌 Admin: Cập nhật lương theo ID
+// ================= 📌 ADMIN: CẬP NHẬT LƯƠNG =================
 exports.updateSalary = async (req, res) => {
   try {
     const { id } = req.params;
-    const { dailyRate, overtimeRate } = req.body;
+    const { dailyRate, overtimeRate, penalty, totalDays } = req.body;
 
     const salary = await Salary.findById(id).populate("userId", "username role");
     if (!salary) return res.status(404).json({ error: "Không tìm thấy bản ghi lương" });
 
     if (dailyRate) salary.dailyRate = Number(dailyRate);
     if (overtimeRate) salary.overtimeRate = Number(overtimeRate);
+    if (penalty) salary.penalty = Number(penalty);
+    if (typeof totalDays !== "undefined") salary.totalDays = Number(totalDays);
 
-    // 👉 Chỉ tính trong tháng hiện tại
-    const currentMonth = moment().format("YYYY-MM");
-    const start = moment(currentMonth, "YYYY-MM").startOf("month").toDate();
-    const end = moment(currentMonth, "YYYY-MM").endOf("month").toDate();
+    salary.amount =
+      salary.totalDays * salary.dailyRate - salary.penalty + salary.overtimePay;
 
-    const totals = await Attendance.aggregate([
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(salary.userId._id),
-          checkIn: { $gte: start, $lte: end }
-        }
-      },
-      {
-        $group: {
-          _id: "$userId",
-          totalDays: { $sum: { $ifNull: ["$totalDays", 0] } },
-          totalLateMinutes: { $sum: { $ifNull: ["$lateMinutes", 0] } },
-          totalOvertimeHours: { $sum: { $ifNull: ["$overtimeHours", 0] } }
-        }
-      }
-    ]);
-
-    const stat = totals.length ? totals[0] : { totalDays: 0, totalLateMinutes: 0, totalOvertimeHours: 0 };
-    const penalty = calculatePenalty(stat.totalLateMinutes, salary.dailyRate);
-    const overtimePay = stat.totalOvertimeHours * salary.overtimeRate;
-    salary.amount = (stat.totalDays * salary.dailyRate) - penalty + overtimePay;
-    salary.penalty = penalty;
-    salary.penaltyRate = calculatePenaltyRate(stat.totalLateMinutes);
-    salary.overtimePay = overtimePay;
-    salary.totalDays = stat.totalDays;
-    salary.totalLateMinutes = stat.totalLateMinutes;
     await salary.save();
-
-    res.json({
-      message: "✅ Cập nhật lương thành công",
-      salary: {
-        ...salary.toObject(),
-        totalDays: stat.totalDays,
-        penalty,
-        overtimePay
-      }
-    });
+    res.json({ message: "✅ Cập nhật lương thành công", salary });
   } catch (err) {
     console.error("❌ updateSalary error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
-// 📌 User: Xem lương cá nhân
+// ================= 📌 USER: XEM LƯƠNG CỦA MÌNH =================
 exports.getMySalary = async (req, res) => {
   try {
-    let s = await Salary.findOne({ userId: req.user.id }).populate("userId", "username role");
+    // ✅ đọc tháng từ query, nếu không có thì mặc định là tháng hiện tại
+    const currentMonth = req.query.month || moment().format("YYYY-MM");
+    const start = moment(currentMonth, "YYYY-MM").startOf("month").toDate();
+    const end = moment(currentMonth, "YYYY-MM").endOf("month").toDate();
+
+    let s = await Salary.findOne({
+      userId: req.user.id,
+      month: currentMonth,
+    }).populate("userId", "username role");
+
     if (!s) {
       s = new Salary({
         userId: req.user.id,
+        month: currentMonth,
         dailyRate: 300000,
         overtimeRate: 50000,
-        amount: 0
       });
       await s.save();
       s = await s.populate("userId", "username role");
     }
 
-    const currentMonth = moment().format("YYYY-MM");
-    const start = moment(currentMonth, "YYYY-MM").startOf("month").toDate();
-    const end = moment(currentMonth, "YYYY-MM").endOf("month").toDate();
-
     const totals = await Attendance.aggregate([
       {
         $match: {
           userId: new mongoose.Types.ObjectId(req.user.id),
-          checkIn: { $gte: start, $lte: end }
-        }
+          checkIn: { $gte: start, $lte: end },
+        },
       },
       {
         $group: {
           _id: "$userId",
           totalDays: { $sum: { $ifNull: ["$totalDays", 0] } },
           totalLateMinutes: { $sum: { $ifNull: ["$lateMinutes", 0] } },
-          overtimeHours: { $sum: { $ifNull: ["$overtimeHours", 0] } }
-        }
-      }
+          overtimeHours: { $sum: { $ifNull: ["$overtimeHours", 0] } },
+        },
+      },
     ]);
 
-    const stat = totals.length ? totals[0] : { totalDays: 0, totalLateMinutes: 0, overtimeHours: 0 };
-    const penalty = calculatePenalty(stat.totalLateMinutes, s.dailyRate);
-    const overtimePay = stat.overtimeHours * s.overtimeRate;
-    const amount = (stat.totalDays * s.dailyRate) - penalty + overtimePay;
+    const stat =
+      totals.length > 0
+        ? totals[0]
+        : { totalDays: 0, totalLateMinutes: 0, overtimeHours: 0 };
 
-    if (s.amount !== amount || s.penalty !== penalty || s.overtimePay !== overtimePay) {
-      s.amount = amount;
-      s.penalty = penalty;
-      s.overtimePay = overtimePay;
-      s.penaltyRate = calculatePenaltyRate(stat.totalLateMinutes);
-      s.totalDays = stat.totalDays;
-      s.totalLateMinutes = stat.totalLateMinutes;
-      await s.save();
+    const latePenalty = calculateLatePenalty(stat.totalLateMinutes);
+    let penalty = 0;
+    let finalDays = stat.totalDays;
+
+    if (latePenalty === "halfday") {
+      finalDays = Math.max(0, stat.totalDays - 1);
+    } else {
+      penalty = latePenalty;
     }
 
-    res.json([{
-      _id: s._id,
-      userId: s.userId,
-      username: s.userId?.username,
-      totalDays: stat.totalDays,
-      overtimeHours: stat.overtimeHours,
-      penalty,
-      dailyRate: s.dailyRate,
-      overtimeRate: s.overtimeRate,
-      amount,
-      date: s.date
-    }]);
+    const overtimePay = stat.overtimeHours * s.overtimeRate;
+    const basePay = finalDays * s.dailyRate;
+    const amount = basePay - penalty + overtimePay;
+
+    s.totalDays = finalDays;
+    s.totalLateMinutes = stat.totalLateMinutes;
+    s.penalty = penalty;
+    s.overtimePay = overtimePay;
+    s.amount = amount;
+    s.month = currentMonth;
+    await s.save();
+
+    res.json([{ ...s.toObject(), month: currentMonth }]);
   } catch (err) {
     console.error("❌ getMySalary error:", err);
     res.status(500).json({ error: err.message });

@@ -1,14 +1,19 @@
+// routes/salaryRoutes.js
 const express = require("express");
-const { getAllSalaries, updateSalary, getMySalary } = require("../controllers/salaryController");
+const {
+  getAllSalaries,
+  updateSalary,
+  getMySalary,
+} = require("../controllers/salaryController");
 const auth = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// GIỮ path cũ — web dùng tiếp; mobile dùng /api/salary/* (alias)
+// Admin
 router.get("/", auth(["admin"]), getAllSalaries);
 router.put("/:id", auth(["admin"]), updateSalary);
 
-// User xem lương của mình
-router.get("/me", auth(["employee", "manager", "admin"]), getMySalary);
+// User
+router.get("/me", auth(["admin", "manager", "employee"]), getMySalary);
 
 module.exports = router;
