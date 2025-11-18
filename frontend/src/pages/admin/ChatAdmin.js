@@ -1,8 +1,7 @@
-// frontend/src/pages/admin/ChatAdmin.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import io from "socket.io-client";
 import api from "../../api";
-import SidebarMenu from "../../components/SidebarMenu";
+import AdminLayout from "../../layouts/AdminLayout";
 import { useAuth } from "../../context/AuthContext";
 
 const SOCKET_BASE =
@@ -24,7 +23,6 @@ export default function ChatAdmin() {
 
   // ===== Helpers =====
   const myId = useMemo(() => String(me?._id ?? me?.id ?? me?.userId ?? ""), [me]);
-  const myName = useMemo(() => (me?.username || "").trim().toLowerCase(), [me]);
 
   const scrollToBottom = () =>
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
@@ -89,11 +87,14 @@ export default function ChatAdmin() {
     loadEmployees();
   }, [myId]);
 
-  // ===== Mở phòng / load tin =====
+  // ===== Mở phòng chat & load tin nhắn =====
   const openRoom = async (room) => {
     if (!room?._id) return;
 
-    if (joinedRoomIdRef.current) socket.emit("leave_room", { roomId: joinedRoomIdRef.current });
+    if (joinedRoomIdRef.current) {
+      socket.emit("leave_room", { roomId: joinedRoomIdRef.current });
+    }
+
     socket.emit("join_room", { roomId: room._id });
     joinedRoomIdRef.current = room._id;
 
@@ -113,7 +114,7 @@ export default function ChatAdmin() {
     }
   };
 
-  // ===== Tạo private chat =====
+  // ===== Tạo private room =====
   const startPrivateWith = async (userId) => {
     try {
       const res = await api.post("/messages/rooms/private", { otherUserId: userId });
@@ -131,6 +132,7 @@ export default function ChatAdmin() {
     if (!text.trim() || !currentRoom) return;
 
     const content = text.trim();
+
     try {
       const saved = await api.post("/messages", { roomId: currentRoom._id, content });
       const myMsg = normalizeMsg(saved.data);
@@ -162,11 +164,12 @@ export default function ChatAdmin() {
       setMessages((prev) => [...prev, normalizeMsg(payload)]);
       scrollToBottom();
     };
+
     socket.on("receive_message", handler);
     return () => socket.off("receive_message", handler);
   }, [currentRoom, myId]);
 
-  // ===== UI bong bóng =====
+  // ===== Hiển thị tin nhắn =====
   const renderBubble = (m) => {
     const mine = isMine(m);
     return (
@@ -176,20 +179,25 @@ export default function ChatAdmin() {
       >
         <div
           className={`p-2 px-3 rounded-4 shadow-sm ${
-            mine ? "bg-primary text-white align-self-end" : "bg-light text-dark align-self-start"
+            mine ? "bg-primary text-white" : "bg-light text-dark"
           }`}
           style={{
             maxWidth: "70%",
             borderRadius: mine ? "18px 18px 2px 18px" : "18px 18px 18px 2px",
           }}
         >
-          {!mine && <div className="small text-muted mb-1">{m.sender?.username}</div>}
+          {!mine && (
+            <div className="small text-muted mb-1">{m.sender?.username}</div>
+          )}
           <div>{m.content}</div>
           <div
-            className={`small text-muted mt-1 ${mine ? "text-end" : ""}`}
-            style={{ fontSize: "0.75rem" }}
+            className="small text-muted mt-1"
+            style={{ fontSize: "0.75rem", textAlign: mine ? "right" : "left" }}
           >
-            {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {new Date(m.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </div>
         </div>
       </div>
@@ -197,75 +205,81 @@ export default function ChatAdmin() {
   };
 
   const privateTitle = (room) => {
-    const others = (room?.participants || []).filter((p) => extractId(p) !== myId);
+    const others = (room?.participants || []).filter(
+      (p) => extractId(p) !== myId
+    );
     return others.map((p) => p.username).join(", ");
   };
 
-  // ===== UI Layout =====
-  return (
-    <div className="container-fluid mt-3">
-      <div className="row">
-        {/* Sidebar */}
-        <div className="col-3">
-          <SidebarMenu role="admin" />
-          <div className="card mt-3">
-            <div className="card-header"><strong>💬 Chat (Admin)</strong></div>
-            <div className="card-body p-2">
-              <small className="text-muted">Danh sách nhân viên</small>
-              <div className="list-group mt-1" style={{ maxHeight: 300, overflowY: "auto" }}>
-                {employees.map((e) => (
-                  <button
-                    key={e._id}
-                    className="list-group-item list-group-item-action"
-                    onClick={() => startPrivateWith(e.userId?._id || e.userId)}
-                  >
-                    {e.name}{" "}
-                    <span className="text-muted">
-                      ({e.userId?.username || e.username})
-                    </span>
-                  </button>
-                ))}
-              </div>
+  // ============================
+  //        GIAO DIỆN CHÍNH
+  // ============================
 
-              <hr className="my-2" />
-              <small className="text-muted">Các phòng chat</small>
-              <div className="list-group mt-1" style={{ maxHeight: 300, overflowY: "auto" }}>
-                {rooms.map((r) => (
-                  <button
-                    key={r._id}
-                    className="list-group-item list-group-item-action"
-                    onClick={() => openRoom(r)}
-                  >
-                    {r.name || privateTitle(r)}
-                  </button>
-                ))}
-              </div>
+  return (
+    <AdminLayout>
+      <h2 className="mb-3">💬 Chat nội bộ (Admin)</h2>
+
+      <div className="d-flex gap-3">
+        {/* DANH SÁCH PHÒNG + NHÂN VIÊN */}
+        <div style={{ width: "300px" }}>
+          <div className="card p-2 mb-3">
+            <h6 className="border-bottom pb-2">👥 Nhân viên</h6>
+            <div style={{ maxHeight: 260, overflowY: "auto" }}>
+              {employees.map((e) => (
+                <button
+                  key={e._id}
+                  className="list-group-item list-group-item-action"
+                  onClick={() =>
+                    startPrivateWith(e.userId?._id || e.userId)
+                  }
+                >
+                  {e.name}{" "}
+                  <span className="text-muted">
+                    ({e.userId?.username || e.username})
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card p-2">
+            <h6 className="border-bottom pb-2">💬 Phòng chat</h6>
+            <div style={{ maxHeight: 260, overflowY: "auto" }}>
+              {rooms.map((r) => (
+                <button
+                  key={r._id}
+                  className="list-group-item list-group-item-action"
+                  onClick={() => openRoom(r)}
+                >
+                  {r.name || privateTitle(r)}
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Khung chat */}
-        <div className="col-9">
-          <div className="card">
-            <div className="card-header d-flex align-items-center justify-content-between">
-              <div>
+        {/* KHUNG CHAT */}
+        <div className="flex-grow-1">
+          <div className="card h-100">
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <strong>
                 {currentRoom
                   ? currentRoom.type === "group"
                     ? `👥 ${currentRoom.name}`
                     : `💬 ${privateTitle(currentRoom)}`
-                  : "Chọn đoạn chat để bắt đầu"}
-              </div>
+                  : "Chọn một phòng để bắt đầu chat"}
+              </strong>
+
               <button
                 className="btn btn-sm btn-outline-secondary"
                 onClick={() => currentRoom && loadMessages(currentRoom)}
                 disabled={!currentRoom}
-                title="Làm mới"
               >
                 ⟳
               </button>
             </div>
 
-            <div className="card-body" style={{ height: 520, overflowY: "auto" }}>
+            <div className="card-body" style={{ height: 500, overflowY: "auto" }}>
               {messages.map((m) => renderBubble(m))}
               <div ref={bottomRef} />
             </div>
@@ -279,7 +293,10 @@ export default function ChatAdmin() {
                   onChange={(e) => setText(e.target.value)}
                   disabled={!currentRoom}
                 />
-                <button className="btn btn-primary" disabled={!currentRoom || !text.trim()}>
+                <button
+                  className="btn btn-primary"
+                  disabled={!currentRoom || !text.trim()}
+                >
                   Gửi
                 </button>
               </form>
@@ -287,6 +304,6 @@ export default function ChatAdmin() {
           </div>
         </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

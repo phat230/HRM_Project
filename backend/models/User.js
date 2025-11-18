@@ -4,7 +4,12 @@ const userSchema = new mongoose.Schema(
   {
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ["admin", "manager", "employee"], default: "employee" }
+    role: { type: String, enum: ["admin", "manager", "employee"], default: "employee" },
+
+    employeeData: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+    }
   },
   { timestamps: true }
 );

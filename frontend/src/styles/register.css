@@ -1,0 +1,60 @@
+/* Register Page */
+
+.auth-card {
+  animation: fadeIn 0.4s ease;
+}
+
+.auth-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #28a745;
+  text-align: center;
+}
+
+.auth-sub {
+  text-align: center;
+  font-size: 14px;
+  margin-bottom: 20px;
+  color: #666;
+}
+
+.auth-form input,
+.auth-form select {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  transition: 0.2s;
+}
+
+.auth-form input:focus,
+.auth-form select:focus {
+  border-color: #28a745;
+  box-shadow: 0 0 6px rgba(40, 167, 69, 0.3);
+}
+
+.auth-btn {
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.auth-switch {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.auth-link {
+  color: #28a745;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

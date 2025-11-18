@@ -1,18 +1,14 @@
 import React from "react";
-import SidebarMenu from "../../components/SidebarMenu";
+import AdminLayout from "../../layouts/AdminLayout";
 
-function AdminDashboard() {
+export default function AdminDashboard() {
   return (
-    <div className="container mt-3">
-      <div className="row">
-        <div className="col-3"><SidebarMenu role="admin" /></div>
-        <div className="col-9">
-          <h3>📊 Admin Dashboard</h3>
-          <p>Chào mừng Admin! Dùng menu bên trái để quản lý.</p>
-        </div>
+    <AdminLayout>
+      <h2>🏠 Dashboard (Admin)</h2>
+
+      <div className="card p-3 mt-3">
+        <p>Chào mừng bạn đến với hệ thống quản trị HRM.</p>
       </div>
-    </div>
+    </AdminLayout>
   );
 }
-
-export default AdminDashboard;

@@ -1,0 +1,59 @@
+/* Layout full height */
+.layout-container {
+  display: flex;
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+/* Sidebar */
+.layout-sidebar {
+  width: 260px;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  padding: 20px 10px;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  overflow-y: auto;
+}
+
+/* Content */
+.layout-content {
+  flex: 1;
+  margin-left: 260px;
+  padding: 30px;
+}
+
+/* Sidebar items nâng cấp */
+.sidebar-item {
+  padding: 10px 14px;
+  border-radius: 8px;
+  display: block;
+  color: #334155;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  text-decoration: none;
+  transition: 0.2s;
+}
+
+.sidebar-item:hover {
+  background: #e2e8f0;
+}
+
+.sidebar-item.active {
+  background: #0ea5e9;
+  color: white;
+}
+
+.sidebar-header {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.btn-logout {
+  margin-top: 20px;
+  width: 100%;
+}

@@ -1,40 +1,45 @@
-import React, { createContext, useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+// src/context/AuthContext.js
+import React, { createContext, useState, useContext, useEffect } from "react";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const navigate = useNavigate();
+  const [auth, setAuth] = useState(null);
 
-  const [user, setUser] = useState(() => {
-    const s = localStorage.getItem("user");
-    return s ? JSON.parse(s) : null;
-  });
+  // load từ localStorage khi F5 hoặc mount app
+  useEffect(() => {
+    const saved = localStorage.getItem("authUser");
+    if (saved) {
+      try {
+        setAuth(JSON.parse(saved));
+      } catch {
+        setAuth(null);
+      }
+    }
+  }, []);
 
   const login = (data) => {
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    setUser(data.user);
+    const pack = {
+      token: data.token,
+      refreshToken: data.refreshToken,
+      user: data.user,
+    };
+
+    localStorage.setItem("authUser", JSON.stringify(pack));
+    setAuth(pack);
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUser(null);
-    navigate("/");   // 👉 điều hướng về trang login sau khi logout
+    localStorage.removeItem("authUser");
+    setAuth(null);
+    window.location.href = "/";
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ auth, user: auth?.user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);

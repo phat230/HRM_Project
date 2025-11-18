@@ -1,0 +1,77 @@
+/* ================================
+   AUTH MAIN STYLE (Login + Register)
+   ================================ */
+
+/* Fullscreen background */
+.auth-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #4f8cff, #6ad0ff);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px;
+}
+
+/* Form card */
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 32px 28px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.15);
+  animation: authFade 0.5s ease;
+}
+
+/* Titles */
+.auth-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.auth-sub {
+  color: #666;
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+/* Input beautiful style */
+.auth-form input,
+.auth-form select {
+  border-radius: 10px !important;
+  font-size: 15px;
+  padding: 12px;
+}
+
+/* Submit button */
+.auth-btn {
+  padding: 12px;
+  font-size: 17px;
+  border-radius: 10px !important;
+  font-weight: 600;
+}
+
+/* Switch link under form */
+.auth-switch {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.auth-link {
+  color: #0056d6;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+/* Animation */
+@keyframes authFade {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

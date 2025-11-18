@@ -1,61 +1,65 @@
 import React, { useEffect, useState } from "react";
 import api from "../../api";
-import SidebarMenu from "../../components/SidebarMenu";
+import UserLayout from "../../layouts/UserLayout";
+import { useAuth } from "../../context/AuthContext";
 
-function Notifications() {
+export default function NotificationsUser() {
+  const { user } = useAuth();
   const [notis, setNotis] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    try {
-      const res = await api.get("/notifications");
-      setNotis(res.data);
-    } catch (err) {
-      console.error("❌ Lỗi load thông báo:", err);
-      alert("Không thể tải thông báo.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 🔥 HOOK LUÔN ĐỨNG TRÊN RETURN
   useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.get("/notifications");
+        setNotis(res.data || []);
+      } catch (err) {
+        console.error("❌ Lỗi load thông báo:", err);
+        alert("Không thể tải thông báo.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     load();
   }, []);
 
+  // RETURN ĐƯỢC ĐẶT SAU HOOKS
+  if (!user) {
+    return (
+      <UserLayout>
+        <div className="p-3 text-center">Đang tải dữ liệu...</div>
+      </UserLayout>
+    );
+  }
+
   return (
-    <div className="container mt-3">
-      <div className="row">
-        {/* Sidebar */}
-        <div className="col-3">
-          <SidebarMenu role="employee" />
-        </div>
+    <UserLayout role={user.role}>
+      <h2 className="mb-3">📢 Thông báo</h2>
 
-        {/* Nội dung */}
-        <div className="col-9">
-          <h3>📢 Thông báo</h3>
-
-          {loading ? (
-            <p>⏳ Đang tải dữ liệu...</p>
-          ) : notis.length === 0 ? (
-            <p>Không có thông báo nào.</p>
-          ) : (
-            <div className="list-group">
-              {notis.map((n) => (
-                <div key={n._id} className="list-group-item">
-                  <h5 className="mb-1">{n.title}</h5>
-                  <p className="mb-1">{n.message}</p>
-                  <small>
-                    👤 {n.createdBy?.username || "Hệ thống"} —{" "}
-                    {new Date(n.createdAt).toLocaleString()}
-                  </small>
+      <div className="card p-3">
+        {loading ? (
+          <p>⏳ Đang tải...</p>
+        ) : notis.length === 0 ? (
+          <p className="text-muted">Không có thông báo nào.</p>
+        ) : (
+          <div className="list-group">
+            {notis.map((n) => (
+              <div key={n._id} className="list-group-item list-group-item-action">
+                <div className="d-flex justify-content-between">
+                  <h5>{n.title}</h5>
+                  <small>{new Date(n.createdAt).toLocaleString("vi-VN")}</small>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <p className="mb-1">{n.message}</p>
+                <small className="text-muted">
+                  👤 {n.createdBy?.username || "Hệ thống"}
+                </small>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </UserLayout>
   );
 }
-
-export default Notifications;

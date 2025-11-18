@@ -1,0 +1,17 @@
+/* ========== LOGIN ONLY STYLES ========== */
+
+.login-title {
+  font-size: 30px;
+  font-weight: 800;
+  color: #1a3d8f;
+  text-align: center;
+}
+
+.login-input {
+  border-left: 4px solid #4a7cff !important;
+}
+
+.login-btn:hover {
+  background-color: #004bb7 !important;
+  transform: scale(1.02);
+}

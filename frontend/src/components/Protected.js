@@ -1,29 +1,27 @@
-import React, { useContext } from "react";
+// src/components/Protected.js
+import React from "react";
 import { Navigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
 
 function Protected({ children, roles }) {
-  const { user } = useContext(AuthContext);
+  let { user } = useAuth();
 
-  // 🔑 Nếu context chưa có user thì fallback từ localStorage
-  let currentUser = user;
-  if (!currentUser) {
-    const authUser = localStorage.getItem("authUser");
-    if (authUser) {
+  // nếu chưa load xong từ localStorage → chờ
+  if (user === undefined) return null;
+
+  // fallback localStorage
+  if (!user) {
+    const saved = localStorage.getItem("authUser");
+    if (saved) {
       try {
-        const parsed = JSON.parse(authUser);
-        currentUser = parsed.user;
-      } catch (err) {
-        console.error("❌ Lỗi parse authUser:", err);
-      }
+        user = JSON.parse(saved).user;
+      } catch {}
     }
   }
 
-  // 🚫 Nếu không có user sau khi fallback → quay về login
-  if (!currentUser) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/" replace />;
 
-  // 🧭 Nếu có roles và không khớp role của user → cấm truy cập
-  if (roles && !roles.includes(currentUser.role)) {
+  if (roles && !roles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
 
