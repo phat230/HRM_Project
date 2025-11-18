@@ -1,31 +1,27 @@
-// src/components/Protected.js
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 function Protected({ children, roles }) {
-  let { user } = useAuth();
+  const { auth } = useAuth();
 
-  // nếu chưa load xong từ localStorage → chờ
-  if (user === undefined) return null;
-
-  // fallback localStorage
-  if (!user) {
-    const saved = localStorage.getItem("authUser");
-    if (saved) {
-      try {
-        user = JSON.parse(saved).user;
-      } catch {}
-    }
+  // đang load từ localStorage
+  if (auth === undefined) {
+    return <div style={{ padding: 20 }}>Đang tải...</div>;
   }
 
-  if (!user) return <Navigate to="/" replace />;
+  if (!auth || !auth.user) {
+    return <Navigate to="/" replace />;
+  }
 
+  const user = auth.user;
+
+  // kiểm tra quyền
   if (roles && !roles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }
 
 export default Protected;

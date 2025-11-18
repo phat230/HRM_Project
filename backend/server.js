@@ -24,7 +24,6 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("🔌 Socket connected:", socket.id);
 
-  // ===== JOIN =====
   socket.on("join", ({ userId, department }) => {
     if (userId) socket.join(`user:${userId}`);
     if (department) socket.join(`dept:${department}`);
@@ -42,11 +41,9 @@ io.on("connection", (socket) => {
     console.log(`🔌 ${socket.id} left room ${roomId}`);
   });
 
-  // ===== SEND MESSAGE =====
   socket.on("send_message", (payload = {}) => {
-    // 🔧 Chuẩn hoá payload phát ra để đồng bộ với DB schema
     const out = {
-      _id: payload._id || Date.now().toString(),              // nếu client không gửi _id
+      _id: payload._id || Date.now().toString(),
       roomId: payload.roomId ? String(payload.roomId) : null,
       content: payload.content ?? payload.message ?? "",
       createdAt: payload.createdAt || new Date().toISOString(),
@@ -58,20 +55,16 @@ io.on("connection", (socket) => {
 
     console.log("💬 send_message >", out);
 
-    // ✅ Ưu tiên theo roomId (web/app mới)
     if (out.roomId) {
-      // ⬇️ không echo về chính socket đang gửi
       socket.to(out.roomId).emit("receive_message", out);
       return;
     }
 
-    // 🔄 Giữ tương thích cũ (client cũ bắn type)
     if (payload?.type === "private" && payload?.toUserId) {
       socket.to(`user:${payload.toUserId}`).emit("receive_message", out);
     } else if (payload?.type === "group" && payload?.department) {
       socket.to(`dept:${payload.department}`).emit("receive_message", out);
     } else {
-      // fallback cuối cùng: phát cho tất cả trừ mình
       socket.broadcast.emit("receive_message", out);
     }
   });
@@ -90,7 +83,6 @@ app.use(
         "http://localhost:5173",
         "http://localhost:8080",
         "http://localhost:8081",
-        // Android emulator → localhost máy
         "http://10.0.2.2:3000",
         "http://10.0.2.2:5173",
         "http://10.0.2.2:8080",
@@ -100,6 +92,7 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 // ===== NO-CACHE =====
@@ -131,8 +124,7 @@ app.get("/api", (req, res) => res.json({ ok: true, service: "HRM Backend (API ro
 const authRoutes = require("./routes/authRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 
-// Các route dưới đây có thể không tồn tại trong dự án của bạn.
-// Dùng try/catch để tránh crash nếu thiếu.
+// Optional routes
 let employeeRoutes,
   leaveRoutes,
   messageRoutes,
@@ -141,75 +133,64 @@ let employeeRoutes,
   reportRoutes,
   adminRoutes,
   salaryRoutes;
-try { employeeRoutes = require("./routes/employeeRoutes"); } catch { console.warn("⚠️ employeeRoutes chưa có"); }
-try { leaveRoutes = require("./routes/leaveRoutes"); } catch { console.warn("⚠️ leaveRoutes chưa có"); }
-try { messageRoutes = require("./routes/messageRoutes"); } catch { console.warn("⚠️ messageRoutes chưa có"); }
-try { notificationRoutes = require("./routes/notificationRoutes"); } catch { console.warn("⚠️ notificationRoutes chưa có"); }
-try { workScheduleRoutes = require("./routes/workScheduleRoutes"); } catch { console.warn("⚠️ workScheduleRoutes chưa có"); }
-try { reportRoutes = require("./routes/reportRoutes"); } catch { console.warn("⚠️ reportRoutes chưa có"); }
-try { adminRoutes = require("./routes/adminRoutes"); } catch { console.warn("⚠️ adminRoutes chưa có"); }
-try { salaryRoutes = require("./routes/salaryRoutes"); } catch { console.warn("⚠️ salaryRoutes chưa có"); }
+
+try { employeeRoutes = require("./routes/employeeRoutes"); } catch {}
+try { leaveRoutes = require("./routes/leaveRoutes"); } catch {}
+try { messageRoutes = require("./routes/messageRoutes"); } catch {}
+try { notificationRoutes = require("./routes/notificationRoutes"); } catch {}
+try { workScheduleRoutes = require("./routes/workScheduleRoutes"); } catch {}
+try { reportRoutes = require("./routes/reportRoutes"); } catch {}
+try { adminRoutes = require("./routes/adminRoutes"); } catch {}
+try { salaryRoutes = require("./routes/salaryRoutes"); } catch {}
 
 // ===== MOUNT ROUTES =====
 
-// Auth
-app.use("/auth", authRoutes);                 // legacy (web)
-app.use("/api/auth", authRoutes);             // mobile
+// Auth OK
+app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
 
-// Employees / Profile
+// Employees
 if (employeeRoutes) {
-  app.use("/employees", employeeRoutes);
   app.use("/api/employees", employeeRoutes);
 }
 
-// Attendance
-app.use("/attendance", attendanceRoutes);
+// ===========================================
+// ✅ ATTENDANCE — MOUNT ĐÚNG DUY NHẤT 1 LẦN
+// ===========================================
+
+console.log("📌 Using attendanceRoutes from:", require.resolve("./routes/attendanceRoutes"));
 app.use("/api/attendance", attendanceRoutes);
 
-// Leave requests
+// ===========================================
+
 if (leaveRoutes) {
-  app.use("/leave-requests", leaveRoutes);
   app.use("/api/leave-requests", leaveRoutes);
 }
 
-// Messages / Chat
 if (messageRoutes) {
-  app.use("/messages", messageRoutes);
   app.use("/api/messages", messageRoutes);
 }
 
-// Notifications
 if (notificationRoutes) {
-  app.use("/notifications", notificationRoutes);
   app.use("/api/notifications", notificationRoutes);
 }
 
-// Work schedule
 if (workScheduleRoutes) {
-  app.use("/work-schedule", workScheduleRoutes);
   app.use("/api/work-schedule", workScheduleRoutes);
 }
 
-// Reports
 if (reportRoutes) {
-  app.use("/report", reportRoutes);
   app.use("/api/report", reportRoutes);
 }
 
-// Admin
 if (adminRoutes) {
-  app.use("/admin", adminRoutes);
   app.use("/api/admin", adminRoutes);
 }
 
-// Salary — mount ở CẢ 2 đường dẫn
 if (salaryRoutes) {
-  app.use("/salary", salaryRoutes);
   app.use("/api/salary", salaryRoutes);
   app.use("/api/admin/salary", salaryRoutes);
-  console.log("💰 Salary routes at /salary, /api/salary & /api/admin/salary");
-} else {
-  console.warn("⚠️ Salary route chưa được cấu hình");
+  console.log("💰 Salary routes mounted");
 }
 
 // ===== ERROR HANDLERS =====
@@ -221,5 +202,4 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-// Export io nếu cần dùng nơi khác
 module.exports = { io };

@@ -1,12 +1,10 @@
-// src/context/AuthContext.js
 import React, { createContext, useState, useContext, useEffect } from "react";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [auth, setAuth] = useState(null);
+  const [auth, setAuth] = useState(undefined);
 
-  // load từ localStorage khi F5 hoặc mount app
   useEffect(() => {
     const saved = localStorage.getItem("authUser");
     if (saved) {
@@ -15,6 +13,8 @@ export const AuthProvider = ({ children }) => {
       } catch {
         setAuth(null);
       }
+    } else {
+      setAuth(null);
     }
   }, []);
 

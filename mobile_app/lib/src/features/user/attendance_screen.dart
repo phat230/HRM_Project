@@ -4,6 +4,7 @@ import '../../core/api/api_client.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
+
   @override
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
@@ -11,134 +12,114 @@ class AttendanceScreen extends StatefulWidget {
 class _AttendanceScreenState extends State<AttendanceScreen> {
   bool loading = true;
   String? error;
-  List<dynamic> records = [];
-  Map<String, dynamic>? today;
+  List<Map<String, dynamic>> records = [];
+
+  // ==== FORMAT DATE (giống web) ====
+  String _fmtDate(dynamic iso) {
+    if (iso == null) return "–";
+    final dt = DateTime.tryParse(iso.toString());
+    if (dt == null) return "–";
+    return "${dt.day.toString().padLeft(2, '0')}/"
+        "${dt.month.toString().padLeft(2, '0')}/"
+        "${dt.year}";
+  }
+
+  // ==== FORMAT TIME 24H (giống web) ====
+  String _fmtTime(dynamic iso) {
+    if (iso == null) return "–";
+    final dt = DateTime.tryParse(iso.toString());
+    if (dt == null) return "–";
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final ss = dt.second.toString().padLeft(2, '0');
+    return "$hh:$mm:$ss"; // Web HIỂN THỊ FULL 24H
+  }
+
+  // ==== FORMAT NUMBER ====
+  String _fmtNum(dynamic v) {
+    if (v == null) return "0";
+    final d = double.tryParse(v.toString()) ?? 0;
+    return d.toStringAsFixed(2);
+  }
 
   Future<void> _load() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
     try {
-      final res = await ApiClient.instance.dio.get('/attendance'); // KHỚP backend
-      final data = (res.data as List).cast<Map<String, dynamic>>();
-      records = data;
-      final todayStr = DateTime.now().toIso8601String().split('T').first;
-      today = data.where((r) => r['date'] == todayStr).cast<Map<String, dynamic>?>().firstOrNull ?? {};
+      final res = await ApiClient.instance.dio.get('/attendance');
+      records = (res.data as List).cast<Map<String, dynamic>>();
     } on DioException catch (e) {
-      error = e.response?.data?['error']?.toString() ?? 'Lỗi tải dữ liệu';
+      error = e.response?.data?['error'] ?? "Lỗi tải dữ liệu";
     } finally {
-      if (mounted) setState(() { loading = false; });
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
-  }
-
-  Future<void> _checkIn() async {
-    try {
-      await ApiClient.instance.dio.post('/attendance/check-in');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Check-in thành công')));
-      await _load();
-    } on DioException catch (e) {
-      _err(e.response?.data?['error']?.toString() ?? '❌ Lỗi check-in');
-    }
-  }
-
-  Future<void> _startOt() async {
-    try {
-      await ApiClient.instance.dio.post('/attendance/overtime');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Bắt đầu tăng ca')));
-      await _load();
-    } on DioException catch (e) {
-      _err(e.response?.data?['error']?.toString() ?? '❌ Lỗi tăng ca');
-    }
-  }
-
-  Future<void> _endOt() async {
-    try {
-      await ApiClient.instance.dio.post('/attendance/overtime/checkout');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⏹ Kết thúc tăng ca')));
-      await _load();
-    } on DioException catch (e) {
-      _err(e.response?.data?['error']?.toString() ?? '❌ Lỗi kết thúc tăng ca');
-    }
-  }
-
-  void _err(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
-
-  String _t(dynamic iso) {
-    if (iso == null) return '—';
-    final dt = DateTime.tryParse(iso.toString());
-    return (dt == null) ? '—' : TimeOfDay.fromDateTime(dt).format(context);
   }
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final t = today ?? {};
     return Scaffold(
-      appBar: AppBar(title: const Text('🕒 Chấm công')),
+      appBar: AppBar(title: const Text("🕒 Lịch sử chấm công")),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-            if (!loading && error != null)
-              Card(color: Colors.red.withOpacity(0.08), child: Padding(
-                padding: const EdgeInsets.all(16), child: Text(error!, style: const TextStyle(color: Colors.red)),
-              )),
-            if (!loading && error == null) ...[
-              Card(
+            if (loading)
+              const Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('📅 Hôm nay: ${t['date'] ?? DateTime.now().toIso8601String().split('T').first}',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Text('✅ Check-in: ${_t(t['checkIn'])}'),
-                    Text('🕓 Check-out: ${_t(t['checkOut'])}'),
-                    Text('⏳ Đi trễ: ${(t['lateMinutes'] ?? 0).toString()} phút'),
-                    Text('⏰ Tăng ca: ${(t['overtimeHours'] ?? 0).toString()} giờ'),
-                    Text('📈 Ngày công: ${(t['totalDays'] ?? 0).toString()}'),
-                    const SizedBox(height: 12),
-                    Wrap(spacing: 8, runSpacing: 8, children: [
-                      ElevatedButton.icon(
-                        onPressed: (t['checkIn'] == null) ? _checkIn : null,
-                        icon: const Icon(Icons.login), label: const Text('Check-in'),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: (t['checkIn'] != null && t['overtimeStart'] == null) ? _startOt : null,
-                        icon: const Icon(Icons.timer), label: const Text('Bắt đầu tăng ca'),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: (t['overtimeStart'] != null) ? _endOt : null,
-                        icon: const Icon(Icons.stop_circle_outlined), label: const Text('Kết thúc tăng ca'),
-                      ),
-                    ]),
-                  ]),
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text('📜 Lịch sử chấm công', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
+
+            if (!loading && error != null)
+              Card(
+                color: Colors.red.withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    error!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+
+            if (!loading && error == null) ...[
+              // ==== BẢNG LỊCH SỬ GIỐNG WEB ====
               Card(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
+                    headingRowColor: MaterialStateProperty.all(
+                      Theme.of(context).colorScheme.surfaceVariant,
+                    ),
                     columns: const [
-                      DataColumn(label: Text('Ngày')),
-                      DataColumn(label: Text('Vào')),
-                      DataColumn(label: Text('Ra')),
-                      DataColumn(label: Text('Trễ (p)')),
-                      DataColumn(label: Text('OT (h)')),
-                      DataColumn(label: Text('Ngày công')),
+                      DataColumn(label: Text("Ngày")),
+                      DataColumn(label: Text("Giờ vào")),
+                      DataColumn(label: Text("Giờ ra")),
+                      DataColumn(label: Text("Đi trễ (phút)")),
+                      DataColumn(label: Text("Tăng ca (giờ)")),
+                      DataColumn(label: Text("Ngày công")),
                     ],
-                    rows: records.take(90).map((m) {
+                    rows: records.map((r) {
                       return DataRow(cells: [
-                        DataCell(Text(m['date']?.toString() ?? '')),
-                        DataCell(Text(_t(m['checkIn']))),
-                        DataCell(Text(_t(m['checkOut']))),
-                        DataCell(Text('${m['lateMinutes'] ?? 0}')),
-                        DataCell(Text('${m['overtimeHours'] ?? 0}')),
-                        DataCell(Text('${m['totalDays'] ?? 0}')),
+                        DataCell(Text(_fmtDate(r['date']))),
+                        DataCell(Text(_fmtTime(r['checkIn']))),
+                        DataCell(Text(_fmtTime(r['checkOut']))),
+                        DataCell(Text("${r['lateMinutes'] ?? 0}")),
+                        DataCell(Text(_fmtNum(r['overtimeHours']))),
+                        DataCell(Text("${r['totalDays'] ?? 0}")),
                       ]);
                     }).toList(),
                   ),
@@ -150,8 +131,4 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       ),
     );
   }
-}
-
-extension FirstOrNull<E> on Iterable<E> {
-  E? get firstOrNull => isEmpty ? null : first;
 }
