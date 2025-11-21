@@ -7,15 +7,12 @@ const Employee = require("../models/Employee");
 const WORK_START_HOUR = 7;
 const WORK_END_HOUR = 17;
 
-// ================== TÍNH ĐI TRỄ ======================
 function calcLateMinutes(checkIn) {
   if (!checkIn) return 0;
   const mins = checkIn.getHours() * 60 + checkIn.getMinutes();
-  const start = WORK_START_HOUR * 60;
-  return Math.max(0, mins - start);
+  return Math.max(0, mins - WORK_START_HOUR * 60);
 }
 
-// ================== TÍNH CÔNG / OT ===================
 function calcWorkDay(checkIn, checkOut, override = null) {
   let totalDays = 0;
   let overtimeHours = 0;
@@ -35,10 +32,12 @@ function calcWorkDay(checkIn, checkOut, override = null) {
     overtimeHours = diff > 0 ? Math.round((diff / 60) * 100) / 100 : 0;
   }
 
-  return { totalDays: Math.min(1, Math.max(0, totalDays)), overtimeHours };
+  return {
+    totalDays: Math.min(1, Math.max(0, totalDays)),
+    overtimeHours,
+  };
 }
 
-// ================== LẤY DANH SÁCH ===================
 router.get("/", auth(["admin", "manager", "employee"]), async (req, res) => {
   try {
     const { date } = req.query;
@@ -74,10 +73,8 @@ router.get("/", auth(["admin", "manager", "employee"]), async (req, res) => {
       const uid = emp.userId?._id.toString();
       const recs = map.get(uid);
 
-      if (recs?.length) {
-        const last = recs.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-        return last;
-      }
+      if (recs?.length)
+        return recs.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 
       return {
         _id: uid + "-empty",
@@ -102,12 +99,22 @@ router.get("/", auth(["admin", "manager", "employee"]), async (req, res) => {
   }
 });
 
-// ================== CHẤM CÔNG NHANH ===================
 router.post("/bulk-checkin", auth(["admin", "manager"]), async (req, res) => {
   try {
     const { userIds } = req.body;
     if (!Array.isArray(userIds) || userIds.length === 0)
       return res.status(400).json({ error: "Chưa chọn nhân viên" });
+
+    if (req.user.role === "manager") {
+      const allowed = await Employee.find({ manager: req.user.id });
+      const allowedIds = allowed.map((e) => e.userId?.toString());
+
+      for (const uid of userIds) {
+        if (!allowedIds.includes(uid)) {
+          return res.status(403).json({ error: "Bạn không có quyền chấm nhân viên này" });
+        }
+      }
+    }
 
     const now = new Date();
     const today = now.toISOString().split("T")[0];
@@ -146,19 +153,22 @@ router.post("/bulk-checkin", auth(["admin", "manager"]), async (req, res) => {
   }
 });
 
-// ================== CHỈNH SỬA ===================
 router.put("/manual/:id", auth(["admin", "manager"]), async (req, res) => {
   try {
     const rec = await Attendance.findById(req.params.id);
     if (!rec) return res.status(404).json({ error: "Không tìm thấy bản ghi" });
 
+    if (req.user.role === "manager") {
+      const owner = await Employee.findOne({ userId: rec.userId });
+      if (!owner || owner.manager !== req.user.id)
+        return res.status(403).json({ error: "Không có quyền sửa bản ghi này" });
+    }
+
     let checkIn = rec.checkIn ? new Date(rec.checkIn) : null;
     let checkOut = rec.checkOut ? new Date(rec.checkOut) : null;
     let lateMinutes = rec.lateMinutes;
-
     const dateStr = rec.date;
 
-    // ========== UPDATE CHECK IN ===========
     if (req.body.checkIn) {
       const newIn = new Date(req.body.checkIn);
       if (!isNaN(newIn)) {
@@ -167,30 +177,22 @@ router.put("/manual/:id", auth(["admin", "manager"]), async (req, res) => {
       }
     }
 
-    // ========== UPDATE LATE MINUTES ===========
     if (req.body.lateMinutes !== undefined) {
       lateMinutes = Number(req.body.lateMinutes);
 
       if (dateStr) {
         const base = new Date(dateStr);
         base.setHours(WORK_START_HOUR, 0, 0, 0);
-
-        // ❗ Đây là fix quan trọng theo yêu cầu của bạn
-        // late = 0 → checkIn = 07:00
-        // late = 60 → checkIn = 08:00
         base.setMinutes(base.getMinutes() + lateMinutes);
-
         checkIn = base;
       }
     }
 
-    // ========== UPDATE CHECK OUT ===========
     if (req.body.checkOut) {
       const co = new Date(req.body.checkOut);
       if (!isNaN(co)) checkOut = co;
     }
 
-    // ========== TÍNH CÔNG / OT ===========
     const { totalDays, overtimeHours } = calcWorkDay(checkIn, checkOut);
 
     rec.checkIn = checkIn;
@@ -198,8 +200,7 @@ router.put("/manual/:id", auth(["admin", "manager"]), async (req, res) => {
     rec.lateMinutes = lateMinutes;
     rec.overtimeHours = overtimeHours;
     rec.totalDays = totalDays;
-    rec.status =
-      totalDays === 0 ? "Absent" : checkIn && !checkOut ? "Working" : "Present";
+    rec.status = totalDays === 0 ? "Absent" : checkIn && !checkOut ? "Working" : "Present";
 
     await rec.save();
     res.json({ message: "✔ Đã cập nhật", updated: rec });
@@ -208,9 +209,17 @@ router.put("/manual/:id", auth(["admin", "manager"]), async (req, res) => {
   }
 });
 
-// ================== XOÁ ===================
 router.delete("/manual/:id", auth(["admin", "manager"]), async (req, res) => {
   try {
+    const rec = await Attendance.findById(req.params.id);
+    if (!rec) return res.status(404).json({ error: "Không tìm thấy bản ghi" });
+
+    if (req.user.role === "manager") {
+      const owner = await Employee.findOne({ userId: rec.userId });
+      if (!owner || owner.manager !== req.user.id)
+        return res.status(403).json({ error: "Không có quyền xoá bản ghi này" });
+    }
+
     await Attendance.findByIdAndDelete(req.params.id);
     res.json({ message: "🗑 Đã xoá bản ghi" });
   } catch (err) {

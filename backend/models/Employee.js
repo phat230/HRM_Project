@@ -7,7 +7,13 @@ const employeeSchema = new mongoose.Schema(
     department: String,
     position: String,
     address: String,
-    avatar: String
+    avatar: String,
+
+    manager: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true }
 );

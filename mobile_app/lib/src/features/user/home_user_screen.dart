@@ -15,6 +15,10 @@ import 'documents_screen.dart';
 import 'performance_review_screen.dart';
 import 'chat/chat_list_screen.dart';
 
+// Manager Screens ⭐⭐
+import 'attendance_manage_screen.dart';
+import 'manage_group_screen.dart';
+
 class HomeUserScreen extends ConsumerStatefulWidget {
   const HomeUserScreen({super.key});
   @override
@@ -46,13 +50,15 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
     if (confirm == true) {
       await ref.read(sessionProvider.notifier).logout();
       if (mounted) {
-        // 🔥 Điều hướng về trang login sau khi xóa session
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
       }
     }
   }
 
   Widget _buildDashboardTab(BuildContext context) {
+    final session = ref.watch(sessionProvider);
+    final isManager = session?.role == "manager";
+
     final shortcuts = <_MenuItem>[
       _MenuItem('Chấm công', Icons.fingerprint, const AttendanceScreen()),
       _MenuItem('Lịch làm', Icons.calendar_month, const WorkScheduleScreen()),
@@ -63,15 +69,27 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
       _MenuItem('Thông báo', Icons.notifications, const NotificationsScreen()),
       _MenuItem('Tài liệu', Icons.insert_drive_file, const DocumentsScreen()),
       _MenuItem('Đánh giá', Icons.star_half, const PerformanceReviewScreen()),
-      _MenuItem('Chat', Icons.chat, const ChatListScreen()), // ⬅️
+      _MenuItem('Chat', Icons.chat, const ChatListScreen()),
     ];
+
+    // ⭐⭐ Manager extra shortcuts
+    if (isManager) {
+      shortcuts.addAll([
+        _MenuItem("Nhóm nhân viên", Icons.group, const ManageGroupScreen()),
+        _MenuItem("Chấm công nhân viên", Icons.manage_history,
+            const AttendanceManageScreen()),
+      ]);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const UserDashboardScreen(),
         const SizedBox(height: 12),
+
         Text('Lối tắt', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
+
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -87,9 +105,8 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
             return Card(
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => it.page),
-                ),
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => it.page)),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
@@ -109,12 +126,25 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
   }
 
   Widget _buildWorkTab(BuildContext context) {
+    final session = ref.watch(sessionProvider);
+    final isManager = session?.role == "manager";
+
     final items = <_MenuItem>[
       _MenuItem('Chấm công', Icons.fingerprint, const AttendanceScreen()),
       _MenuItem('Lịch làm việc', Icons.calendar_month, const WorkScheduleScreen()),
       _MenuItem('Xin nghỉ phép', Icons.event_busy, const LeaveRequestScreen()),
       _MenuItem('Lịch sử nghỉ', Icons.history, const LeaveHistoryScreen()),
     ];
+
+    // ⭐⭐ Manager features
+    if (isManager) {
+      items.addAll([
+        _MenuItem('Nhóm nhân viên', Icons.group, const ManageGroupScreen()),
+        _MenuItem('Chấm công nhân viên', Icons.manage_history,
+            const AttendanceManageScreen()),
+      ]);
+    }
+
     return _MenuList(items: items);
   }
 
@@ -124,7 +154,8 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
       _MenuItem('Hồ sơ cá nhân', Icons.person, const ProfileUpdateScreen()),
       _MenuItem('Thông báo', Icons.notifications, const NotificationsScreen()),
       _MenuItem('Tài liệu', Icons.insert_drive_file, const DocumentsScreen()),
-      _MenuItem('Đánh giá hiệu suất', Icons.star_half, const PerformanceReviewScreen()),
+      _MenuItem('Đánh giá hiệu suất', Icons.star_half,
+          const PerformanceReviewScreen()),
       _MenuItem('Chat', Icons.chat, const ChatListScreen()),
     ];
     return _MenuList(items: items);
@@ -137,6 +168,7 @@ class _HomeUserScreenState extends ConsumerState<HomeUserScreen> {
       _buildWorkTab(context),
       _buildPersonalTab(context),
     ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('HRM — Nhân viên'),
@@ -184,9 +216,8 @@ class _MenuList extends StatelessWidget {
             leading: Icon(it.icon),
             title: Text(it.title),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => it.page),
-            ),
+            onTap: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => it.page)),
           ),
         );
       },

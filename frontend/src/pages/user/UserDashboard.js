@@ -12,14 +12,12 @@ export default function UserDashboard() {
   const [notifications, setNotifications] = useState(0);
   const [performance, setPerformance] = useState(0);
 
-  // 🔥 Load dữ liệu Dashboard
   useEffect(() => {
     loadAttendance();
     loadNotifications();
     loadPerformance();
   }, []);
 
-  // 🕒 Tổng số ngày công tháng này
   const loadAttendance = async () => {
     try {
       const res = await api.get("/attendance");
@@ -30,7 +28,6 @@ export default function UserDashboard() {
     }
   };
 
-  // 📢 Số thông báo
   const loadNotifications = async () => {
     try {
       const res = await api.get("/notifications");
@@ -40,7 +37,6 @@ export default function UserDashboard() {
     }
   };
 
-  // 📊 Điểm hiệu suất TB
   const loadPerformance = async () => {
     try {
       const res = await api.get("/employees/performance");
@@ -66,7 +62,7 @@ export default function UserDashboard() {
     <UserLayout role={user?.role}>
       <h2 className="mb-3">🏠 Trang tổng quan</h2>
 
-      {/* Banner hướng dẫn */}
+      {/* Banner */}
       <div className="alert alert-info shadow-sm">
         Xin chào <b>{user?.username}</b> 👋 <br />
         Hãy sử dụng menu bên trái để truy cập các chức năng:
@@ -123,6 +119,36 @@ export default function UserDashboard() {
             <h3 className="text-success">{performance}</h3>
           </div>
         </div>
+
+        {/* ⭐⭐ MANAGER ONLY — QUẢN LÝ NHÓM ⭐⭐ */}
+        {user?.role === "manager" && (
+          <>
+
+            <div className="col-md-6">
+              <div
+                className="card shadow-sm p-3 text-center dashboard-card"
+                onClick={() => navigate("/user/manage-group")}
+                style={{ cursor: "pointer" }}
+              >
+                <h5>👥 Quản lý nhóm</h5>
+                <p className="text-muted small">Thêm & quản lý nhân viên dưới quyền</p>
+              </div>
+            </div>
+
+            <div className="col-md-6">
+              <div
+                className="card shadow-sm p-3 text-center dashboard-card"
+                onClick={() => navigate("/user/manager-attendance")}
+                style={{ cursor: "pointer" }}
+              >
+                <h5>🕒 Chấm công nhân viên</h5>
+                <p className="text-muted small">Chấm công nhóm bạn quản lý</p>
+              </div>
+            </div>
+
+          </>
+        )}
+
       </div>
 
       {/* CSS hover nhỏ */}

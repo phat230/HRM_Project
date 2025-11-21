@@ -192,6 +192,11 @@ if (salaryRoutes) {
   app.use("/api/admin/salary", salaryRoutes);
   console.log("💰 Salary routes mounted");
 }
+let managerRoutes;
+try { managerRoutes = require("./routes/managerRoutes"); } catch {}
+if (managerRoutes) {
+  app.use("/api/manager", managerRoutes);
+}
 
 // ===== ERROR HANDLERS =====
 const { notFound, errorHandler } = require("./middleware/errorHandler");

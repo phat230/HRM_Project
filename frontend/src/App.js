@@ -1,3 +1,4 @@
+// App.js
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
@@ -18,7 +19,7 @@ import PerformanceReviewAdmin from "./pages/admin/PerformanceReviewAdmin";
 import DocumentManagementAdmin from "./pages/admin/DocumentManagementAdmin";
 import WorkScheduleAdmin from "./pages/admin/WorkScheduleAdmin";
 import ChatAdmin from "./pages/admin/ChatAdmin";
-
+import ReportAdmin from "./pages/admin/ReportAdmin";
 
 // User
 import UserDashboard from "./pages/user/UserDashboard";
@@ -33,68 +34,46 @@ import NotificationsUser from "./pages/user/NotificationsUser";
 import PerformanceReviewUser from "./pages/user/PerformanceReviewUser";
 import DocumentManagementUser from "./pages/user/DocumentManagementUser";
 import WorkScheduleUser from "./pages/user/WorkScheduleUser";
-import ReportAdmin from "./pages/admin/ReportAdmin";
+
+// Manager
+import ManageGroup from "./pages/user/ManageGroup";
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+
           {/* Public */}
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<Register />} />
-{/* ================= ADMIN ================= */}
-<Route
-  path="/admin/chat"
-  element={<Protected roles={["admin"]}><ChatAdmin /></Protected>}
-/>
-<Route
-  path="/admin/dashboard"
-  element={<Protected roles={["admin"]}><AdminDashboard /></Protected>}
-/>
-<Route
-  path="/admin/hr-management"
-  element={<Protected roles={["admin"]}><HRManagement /></Protected>}
-/>
-<Route
-  path="/admin/leave-approval"
-  element={<Protected roles={["admin"]}><LeaveApproval /></Protected>}
-/>
-<Route
-  path="/admin/attendance-management"
-  element={<Protected roles={["admin"]}><AttendanceManagement /></Protected>}
-/>
-<Route
-  path="/admin/notifications"
-  element={<Protected roles={["admin"]}><NotificationsAdmin /></Protected>}
-/>
-<Route
-  path="/admin/salary-management"
-  element={<Protected roles={["admin"]}><SalaryManagementAdmin /></Protected>}
-/>
-<Route
-  path="/admin/performance-review"
-  element={<Protected roles={["admin"]}><PerformanceReviewAdmin /></Protected>}
-/>
-<Route
-  path="/admin/document-management"
-  element={<Protected roles={["admin"]}><DocumentManagementAdmin /></Protected>}
-/>
-<Route
-  path="/admin/work-schedule"
-  element={<Protected roles={["admin"]}><WorkScheduleAdmin /></Protected>}
-/>
-<Route
-  path="/admin/reports"
-  element={<Protected roles={["admin"]}><ReportAdmin /></Protected>}
-/>
 
-          {/* ================= USER ================= */}
+          {/* ================= ADMIN ================= */}
+          <Route path="/admin/dashboard" element={<Protected roles={["admin"]}><AdminDashboard /></Protected>} />
+          <Route path="/admin/hr-management" element={<Protected roles={["admin"]}><HRManagement /></Protected>} />
+          <Route path="/admin/leave-approval" element={<Protected roles={["admin"]}><LeaveApproval /></Protected>} />
+          <Route path="/admin/attendance-management" element={<Protected roles={["admin"]}><AttendanceManagement /></Protected>} />
+          <Route path="/admin/salary-management" element={<Protected roles={["admin"]}><SalaryManagementAdmin /></Protected>} />
+          <Route path="/admin/notifications" element={<Protected roles={["admin"]}><NotificationsAdmin /></Protected>} />
+          <Route path="/admin/performance-review" element={<Protected roles={["admin"]}><PerformanceReviewAdmin /></Protected>} />
+          <Route path="/admin/document-management" element={<Protected roles={["admin"]}><DocumentManagementAdmin /></Protected>} />
+          <Route path="/admin/work-schedule" element={<Protected roles={["admin"]}><WorkScheduleAdmin /></Protected>} />
+          <Route path="/admin/chat" element={<Protected roles={["admin"]}><ChatAdmin /></Protected>} />
+          <Route path="/admin/reports" element={<Protected roles={["admin"]}><ReportAdmin /></Protected>} />
+
+          {/* ================= USER + MANAGER ================= */}
           <Route path="/user/dashboard" element={<Protected roles={["employee","manager"]}><UserDashboard /></Protected>} />
           <Route path="/user/profile-update" element={<Protected roles={["employee","manager"]}><ProfileUpdate /></Protected>} />
           <Route path="/user/leave-request" element={<Protected roles={["employee","manager"]}><LeaveRequest /></Protected>} />
           <Route path="/user/leave-history" element={<Protected roles={["employee","manager"]}><LeaveHistory /></Protected>} />
+
+          {/* Chấm công cá nhân + tab manager */}
           <Route path="/user/attendance" element={<Protected roles={["employee","manager"]}><Attendance /></Protected>} />
+
+          {/* Manager group */}
+          <Route path="/user/manage-group" element={<Protected roles={["manager"]}><ManageGroup /></Protected>} />
+
+          {/* User common */}
           <Route path="/user/chat" element={<Protected roles={["employee","manager"]}><Chat /></Protected>} />
           <Route path="/user/report" element={<Protected roles={["employee","manager"]}><Report /></Protected>} />
           <Route path="/user/notifications" element={<Protected roles={["employee","manager"]}><NotificationsUser /></Protected>} />
@@ -102,6 +81,7 @@ function App() {
           <Route path="/user/performance-review" element={<Protected roles={["employee","manager"]}><PerformanceReviewUser /></Protected>} />
           <Route path="/user/document-management" element={<Protected roles={["employee","manager"]}><DocumentManagementUser /></Protected>} />
           <Route path="/user/work-schedule" element={<Protected roles={["employee","manager"]}><WorkScheduleUser /></Protected>} />
+
         </Routes>
       </AuthProvider>
     </BrowserRouter>
